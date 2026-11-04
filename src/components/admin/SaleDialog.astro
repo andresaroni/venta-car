@@ -1,0 +1,186 @@
+
+<dialog class="a-modal" data-static data-sale-dialog aria-labelledby="sale-title">
+  <form data-sale-form novalidate>
+    <div class="a-modal-head">
+      <div>
+        <p class="a-eyebrow red">Inventario / Registrar venta</p>
+        <h2 class="a-title a-h2" id="sale-title" style="margin-top:.5rem">Cerrar venta</h2>
+      </div>
+      <button type="button" class="a-icon-btn" aria-label="Cerrar" data-close>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="a-modal-body">
+      <div class="a-error" data-sale-error hidden role="alert"></div>
+
+      <div class="deal">
+        <p class="a-eyebrow">Vehículo</p>
+        <p class="deal-name" data-sale-name></p>
+        <div class="deal-grid">
+          <div>
+            <span class="a-eyebrow">Gastos</span>
+            <strong class="num" data-sale-expenses></strong>
+          </div>
+          <div>
+            <span class="a-eyebrow">Precio publicado</span>
+            <strong class="num" data-sale-list></strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="a-grid-2">
+        <label class="a-field a-span-2">
+          <span class="a-label">Precio final de venta * <span class="opt">(negociable)</span></span>
+          <span class="a-input-money">
+            <input class="a-input num price-input" name="salePrice" type="number" inputmode="decimal" min="0" step="0.01" required data-sale-price />
+          </span>
+        </label>
+        <label class="a-field">
+          <span class="a-label">Comprador *</span>
+          <input class="a-input" name="buyerName" placeholder="Nombre del cliente" required maxlength="120" />
+        </label>
+        <label class="a-field">
+          <span class="a-label">Teléfono <span class="opt">(opcional)</span></span>
+          <input class="a-input" name="buyerPhone" type="tel" placeholder="Ej. +52 55 1234 5678" maxlength="40" />
+        </label>
+        <label class="a-field">
+          <span class="a-label">Fecha de venta</span>
+          <input class="a-input" name="soldAt" type="date" />
+        </label>
+        <label class="a-field">
+          <span class="a-label">Notas <span class="opt">(opcional)</span></span>
+          <input class="a-input" name="notes" placeholder="Forma de pago, acuerdos…" maxlength="500" />
+        </label>
+      </div>
+
+      <div class="result" data-sale-result>
+        <div>
+          <span class="a-label">Ganancia a este precio</span>
+          <small data-sale-diff></small>
+        </div>
+        <strong class="num" data-sale-profit>$0</strong>
+      </div>
+    </div>
+
+    <div class="a-modal-foot">
+      <button type="button" class="a-btn a-btn-ghost" data-close>Cancelar</button>
+      <button type="submit" class="a-btn a-btn-primary" data-sale-submit>
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+        Registrar venta
+      </button>
+    </div>
+  </form>
+</dialog>
+
+<style>
+  .deal {
+    padding: 1.25rem;
+    background: #f4f3f1;
+    border: 1px solid var(--a-line);
+  }
+  .deal-name {
+    margin-top: 0.375rem;
+    font-family: var(--font-condensed);
+    font-size: 1.625rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+  .deal-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .deal-grid strong {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 1.125rem;
+  }
+  .price-input {
+    font-size: 1.25rem;
+    font-weight: 700;
+    min-height: 3.25rem;
+  }
+  .result {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--a-line);
+  }
+  .result small {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .result strong {
+    font-family: var(--font-condensed);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--a-good);
+  }
+  .result.neg strong {
+    color: var(--a-bad);
+  }
+</style>
+
+<script>
+  import { api, money, parseMoney, reloadWith, showError } from '../../scripts/admin';
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-sale-dialog]')!;
+  const form = dialog.querySelector<HTMLFormElement>('[data-sale-form]')!;
+  const errorBox = form.querySelector<HTMLElement>('[data-sale-error]');
+  const priceInput = form.querySelector<HTMLInputElement>('[data-sale-price]')!;
+  const submit = form.querySelector<HTMLButtonElement>('[data-sale-submit]')!;
+  let current: any = null;
+
+  function render() {
+    if (!current) return;
+    const price = parseMoney(priceInput.value);
+    const profit = price - current.totalExpenses;
+    form.querySelector('[data-sale-profit]')!.textContent = money(profit);
+    form.querySelector('[data-sale-result]')!.classList.toggle('neg', profit < 0);
+    const diff = price - current.salePrice;
+    form.querySelector('[data-sale-diff]')!.textContent =
+      diff === 0 ? 'Mismo precio publicado' : `${diff > 0 ? '+' : '−'}${money(Math.abs(diff))} vs. precio publicado`;
+  }
+  priceInput.addEventListener('input', render);
+
+  document.addEventListener('sale:open', (e) => {
+    current = (e as CustomEvent).detail;
+    form.reset();
+    errorBox!.hidden = true;
+    form.querySelector('[data-sale-name]')!.textContent = current.label;
+    form.querySelector('[data-sale-expenses]')!.textContent = money(current.totalExpenses);
+    form.querySelector('[data-sale-list]')!.textContent = money(current.salePrice);
+    priceInput.value = String(current.salePrice);
+    // Fecha local del usuario (no la del servidor)
+    const d = new Date();
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const dateInput = form.querySelector<HTMLInputElement>('[name=soldAt]')!;
+    dateInput.value = local;
+    dateInput.max = local;
+    render();
+    dialog.showModal();
+    priceInput.focus();
+    priceInput.select();
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!current) return;
+    const body = Object.fromEntries(new FormData(form));
+    submit.disabled = true;
+    try {
+      await api('POST', `/api/admin/vehicles/${current.id}/sell`, body);
+      reloadWith('Venta registrada. El vehículo ya no aparece en la página.');
+    } catch (err) {
+      showError(errorBox, (err as Error).message);
+      submit.disabled = false;
+    }
+  });
+</script>

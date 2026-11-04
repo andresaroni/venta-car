@@ -1,0 +1,38 @@
+---
+import Logo from './Logo.astro';
+import { site } from '../data/site';
+const year = new Date().getFullYear();
+---
+
+<footer class="footer">
+  <div class="container footer-inner">
+    <Logo />
+    <p class="footer-copy">© {year} {site.name} {site.tagline}</p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    background: var(--footer-red);
+    color: #fff;
+    padding-block: 2rem;
+  }
+  .footer-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .footer-copy {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    color: rgb(255 255 255 / 0.8);
+  }
+  @media (min-width: 640px) {
+    .footer-inner {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+    }
+  }
+</style>

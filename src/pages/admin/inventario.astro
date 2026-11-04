@@ -1,0 +1,420 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import VehicleFormDialog from '../../components/admin/VehicleFormDialog.astro';
+import SaleDialog from '../../components/admin/SaleDialog.astro';
+import { listVehicles, vehicleLabel, canManage } from '../../lib/vehicles';
+import { money, number, shortDate } from '../../lib/format';
+
+const user = Astro.locals.user!;
+const isAdmin = user.role === 'admin';
+
+// El admin ve todo el inventario; el vendedor solo sus vehículos.
+const vehicles = await listVehicles(isAdmin ? {} : { ownerId: user.id });
+const available = vehicles.filter((v) => v.status === 'available').length;
+const sold = vehicles.length - available;
+const owners = [...new Map(vehicles.map((v) => [v.ownerId, v.ownerName])).entries()].sort((a, b) =>
+  a[1].localeCompare(b[1]),
+);
+
+// Datos que necesita el formulario de edición en el navegador
+const clientData = vehicles
+  .filter((v) => canManage(user, v))
+  .map((v) => ({
+    id: v.id,
+    label: vehicleLabel(v),
+    make: v.make,
+    model: v.model,
+    version: v.version,
+    year: v.year,
+    mileage: v.mileage,
+    color: v.color,
+    vin: v.vin,
+    owners: v.owners,
+    purchasePlace: v.purchasePlace,
+    description: v.description,
+    costs: v.costs,
+    extraExpenses: v.extraExpenses,
+    totalExpenses: v.totalExpenses,
+    salePrice: v.salePrice,
+    images: v.images,
+  }));
+---
+
+<AdminLayout title="Inventario" section="inventario">
+  <div class="head">
+    <div>
+      <p class="a-eyebrow red">Garaje / 02</p>
+      <h1 class="a-title a-h1" style="margin-top:.75rem">Inventario.</h1>
+      <p class="a-lead">
+        {isAdmin ? 'Todos los vehículos del equipo' : 'Tus vehículos'} · {available} disponibles · {sold} vendidos
+      </p>
+    </div>
+    <button type="button" class="a-btn a-btn-dark" data-add-vehicle>
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      Agregar vehículo
+    </button>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs" role="tablist" aria-label="Estado">
+      <button type="button" role="tab" aria-selected="true" data-status="">Todos <span>{vehicles.length}</span></button>
+      <button type="button" role="tab" aria-selected="false" data-status="available">Disponibles <span>{available}</span></button>
+      <button type="button" role="tab" aria-selected="false" data-status="sold">Vendidos <span>{sold}</span></button>
+    </div>
+    <div class="toolbar-right">
+      <input class="a-input a-select-sm search" type="search" placeholder="Buscar marca, modelo o VIN" aria-label="Buscar" data-search />
+      {
+        isAdmin && owners.length > 1 && (
+          <select class="a-select a-select-sm" aria-label="Filtrar por vendedor" data-owner>
+            <option value="">Todos los vendedores</option>
+            {owners.map(([id, name]) => <option value={id}>{name}</option>)}
+          </select>
+        )
+      }
+    </div>
+  </div>
+
+  {
+    vehicles.length === 0 ? (
+      <div class="a-card a-empty">
+        <strong>Aún no hay vehículos</strong>
+        Agrega el primero con el botón “Agregar vehículo”.
+      </div>
+    ) : (
+      <div class="grid" data-grid>
+        {vehicles.map((v) => {
+          const mine = canManage(user, v);
+          const isSold = v.status === 'sold';
+          const search = `${v.make} ${v.model} ${v.version} ${v.year} ${v.vin} ${v.color}`.toLowerCase();
+          return (
+            <article class:list={['vcard a-card', { sold: isSold }]} data-vehicle data-status-value={v.status} data-owner-value={v.ownerId} data-search-value={search}>
+              <div class="vcard-media">
+                {v.images[0] ? (
+                  <img src={v.images[0]} alt={vehicleLabel(v)} loading="lazy" decoding="async" />
+                ) : (
+                  <div class="no-photo">Sin fotos</div>
+                )}
+                <span class:list={['a-badge', { sold: isSold }]}>{isSold ? 'Vendido' : 'Disponible'}</span>
+                {v.images.length > 1 && <span class="photo-count">{v.images.length} fotos</span>}
+              </div>
+              <div class="vcard-body">
+                <p class="a-eyebrow vmeta">
+                  {v.year} · {number(v.mileage)} mi{v.vin && ` · VIN ${v.vin}`}
+                </p>
+                <h2 class="vtitle">
+                  {v.make} {v.model} {v.version}
+                </h2>
+                {isAdmin && <p class="owner">Vendedor: <strong>{v.ownerName}</strong></p>}
+
+                {isSold && v.sale ? (
+                  <dl class="figures">
+                    <div>
+                      <dt>Gastos</dt>
+                      <dd class="num">{money(v.totalExpenses)}</dd>
+                    </div>
+                    <div>
+                      <dt>Vendido en</dt>
+                      <dd class="num">{money(v.sale.salePrice)}</dd>
+                    </div>
+                    <div>
+                      <dt>Ganancia</dt>
+                      <dd class:list={['num', v.sale.profit < 0 ? 'money-bad' : 'money-good']}>{money(v.sale.profit)}</dd>
+                    </div>
+                    <p class="sold-note">
+                      Vendido el {shortDate(v.sale.soldAt)}{v.sale.buyerName && ` a ${v.sale.buyerName}`}
+                    </p>
+                  </dl>
+                ) : (
+                  <dl class="figures">
+                    <div>
+                      <dt>Gastos</dt>
+                      <dd class="num">{money(v.totalExpenses)}</dd>
+                    </div>
+                    <div>
+                      <dt>Precio de venta</dt>
+                      <dd class="num">{money(v.salePrice)}</dd>
+                    </div>
+                    <div>
+                      <dt>Ganancia</dt>
+                      <dd class:list={['num', v.profit < 0 ? 'money-bad' : 'money-good']}>{money(v.profit)}</dd>
+                    </div>
+                  </dl>
+                )}
+
+                {mine && (
+                  <div class="actions">
+                    {!isSold && (
+                      <>
+                        <button type="button" class="a-btn a-btn-outline" data-edit={v.id}>Editar</button>
+                        <button type="button" class="a-btn a-btn-dark" data-sell={v.id}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+                          Registrar venta
+                        </button>
+                      </>
+                    )}
+                    <button type="button" class:list={['a-btn a-btn-danger', { wide: isSold }]} data-delete={v.id} data-label={vehicleLabel(v)} data-sold={isSold ? '1' : ''} aria-label={`Eliminar ${vehicleLabel(v)}`}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      {isSold && 'Eliminar'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    )
+  }
+  <p class="a-card a-empty" data-no-results hidden>Ningún vehículo coincide con el filtro.</p>
+
+  <script type="application/json" id="vehicles-data" set:html={JSON.stringify(clientData)} />
+  <VehicleFormDialog />
+  <SaleDialog />
+</AdminLayout>
+
+<style>
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 2rem 0 1.5rem;
+  }
+  .tabs {
+    display: flex;
+    border: 1px solid var(--a-line);
+    background: #fff;
+  }
+  .tabs button {
+    padding: 0.625rem 1rem;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--a-muted);
+  }
+  .tabs button span {
+    margin-left: 0.25rem;
+    font-weight: 500;
+    opacity: 0.7;
+  }
+  .tabs button[aria-selected='true'] {
+    background: #111;
+    color: #fff;
+  }
+  .toolbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .search {
+    width: 16rem;
+    max-width: 100%;
+  }
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  }
+  .vcard {
+    display: flex;
+    flex-direction: column;
+  }
+  .vcard[hidden] {
+    display: none;
+  }
+  .vcard-media {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    background: #111;
+    overflow: hidden;
+  }
+  .vcard-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .vcard.sold .vcard-media img {
+    filter: grayscale(0.85);
+    opacity: 0.75;
+  }
+  .no-photo {
+    display: grid;
+    place-items: center;
+    height: 100%;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: rgb(255 255 255 / 0.45);
+  }
+  .vcard-media .a-badge {
+    position: absolute;
+    top: 0.875rem;
+    right: 0.875rem;
+  }
+  .photo-count {
+    position: absolute;
+    left: 0.875rem;
+    bottom: 0.875rem;
+    padding: 0.25rem 0.5rem;
+    background: rgb(0 0 0 / 0.7);
+    color: #fff;
+    font-size: 11px;
+  }
+  .vcard-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 1.25rem;
+  }
+  .vmeta {
+    letter-spacing: 0.14em;
+  }
+  .vtitle {
+    margin-top: 0.5rem;
+    font-family: var(--font-condensed);
+    font-size: 1.625rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+  .owner {
+    margin-top: 0.375rem;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .owner strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .figures {
+    display: flex;
+    flex-direction: column;
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--a-line);
+  }
+  .figures div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 0.625rem;
+    border-bottom: 1px solid var(--a-line);
+  }
+  .figures dt {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--a-muted);
+  }
+  .figures dd {
+    font-size: 16px;
+    font-weight: 700;
+  }
+  .figures div:last-of-type dd {
+    font-size: 18px;
+  }
+  .sold-note {
+    padding-top: 0.625rem;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 1.25rem;
+  }
+  .actions .a-btn {
+    padding-inline: 0.75rem;
+  }
+  .actions .wide {
+    grid-column: 1 / -1;
+  }
+</style>
+
+<script>
+  import { api, confirmAction, reloadWith, toast } from '../../scripts/admin';
+
+  const data: any[] = JSON.parse(document.getElementById('vehicles-data')?.textContent || '[]');
+  const byId = (id: string | undefined) => data.find((v) => String(v.id) === id);
+
+  document.querySelector('[data-add-vehicle]')?.addEventListener('click', () =>
+    document.dispatchEvent(new CustomEvent('vehicle:open')),
+  );
+
+  document.querySelectorAll<HTMLElement>('[data-edit]').forEach((b) =>
+    b.addEventListener('click', () =>
+      document.dispatchEvent(new CustomEvent('vehicle:open', { detail: byId(b.dataset.edit) })),
+    ),
+  );
+
+  document.querySelectorAll<HTMLElement>('[data-sell]').forEach((b) =>
+    b.addEventListener('click', () =>
+      document.dispatchEvent(new CustomEvent('sale:open', { detail: byId(b.dataset.sell) })),
+    ),
+  );
+
+  document.querySelectorAll<HTMLButtonElement>('[data-delete]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const sold = !!b.dataset.sold;
+      const ok = await confirmAction({
+        title: 'Eliminar vehículo',
+        message: sold
+          ? `Se eliminará "${b.dataset.label}" del inventario. La venta se conserva en los reportes.`
+          : `Se eliminará "${b.dataset.label}" y sus fotos. Esta acción no se puede deshacer.`,
+      });
+      if (!ok) return;
+      b.disabled = true;
+      try {
+        await api('DELETE', `/api/admin/vehicles/${b.dataset.delete}`);
+        reloadWith('Vehículo eliminado');
+      } catch (err) {
+        toast((err as Error).message, 'error');
+        b.disabled = false;
+      }
+    }),
+  );
+
+  // Filtros
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-vehicle]'));
+  const search = document.querySelector<HTMLInputElement>('[data-search]');
+  const owner = document.querySelector<HTMLSelectElement>('[data-owner]');
+  const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-status]'));
+  const noResults = document.querySelector<HTMLElement>('[data-no-results]');
+  let status = '';
+
+  function filter() {
+    const q = (search?.value ?? '').trim().toLowerCase();
+    const o = owner?.value ?? '';
+    let shown = 0;
+    for (const c of cards) {
+      const ok =
+        (!status || c.dataset.statusValue === status) &&
+        (!o || c.dataset.ownerValue === o) &&
+        (!q || (c.dataset.searchValue ?? '').includes(q));
+      c.hidden = !ok;
+      if (ok) shown++;
+    }
+    if (noResults) noResults.hidden = shown > 0 || cards.length === 0;
+  }
+  tabs.forEach((t) =>
+    t.addEventListener('click', () => {
+      status = t.dataset.status ?? '';
+      tabs.forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+      filter();
+    }),
+  );
+  search?.addEventListener('input', filter);
+  owner?.addEventListener('change', filter);
+</script>

@@ -1,0 +1,21 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Hero from '../components/Hero.astro';
+import Catalog from '../components/Catalog.astro';
+import Contact from '../components/Contact.astro';
+import Footer from '../components/Footer.astro';
+import { getPublicCars } from '../lib/vehicles';
+
+// Solo se muestran los vehículos disponibles (los vendidos desaparecen del catálogo).
+const cars = await getPublicCars();
+Astro.response.headers.set('cache-control', 'public, max-age=0, s-maxage=10, stale-while-revalidate=30');
+---
+
+<Layout>
+  <main>
+    <Hero count={cars.length} />
+    <Catalog cars={cars} />
+    <Contact />
+  </main>
+  <Footer />
+</Layout>

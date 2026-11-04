@@ -1,0 +1,339 @@
+---
+import WhatsAppIcon from './WhatsAppIcon.astro';
+import type { Car } from '../data/cars';
+
+interface Props {
+  cars: Car[];
+}
+const { cars } = Astro.props;
+---
+
+<script type="application/json" id="cars-data" set:html={JSON.stringify(cars)} />
+
+<dialog class="car-modal" aria-labelledby="car-modal-title" data-car-modal>
+  <div class="modal-inner">
+    <button type="button" class="modal-close" aria-label="Close" data-modal-close>
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+    </button>
+
+    <div class="modal-gallery">
+      <div class="carousel modal-carousel" data-carousel tabindex="0" aria-label="Vehicle photos">
+        <div class="carousel-track" data-track></div>
+        <button type="button" class="carousel-arrow" data-prev aria-label="Previous image">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>
+        </button>
+        <button type="button" class="carousel-arrow" data-next aria-label="Next image">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+        </button>
+        <div class="carousel-dots" data-dots></div>
+        <div class="modal-badge" data-field="status"></div>
+      </div>
+      <div class="thumbs" data-thumbs></div>
+    </div>
+
+    <div class="modal-details">
+      <p class="modal-meta" data-field="meta"></p>
+      <h2 class="modal-title" id="car-modal-title">
+        <span data-field="make"></span> <span class="text-red" data-field="model"></span>
+      </h2>
+      <p class="modal-price" data-field="price"></p>
+      <p class="modal-desc" data-field="description"></p>
+
+      <dl class="specs">
+        <div><dt>Year</dt><dd data-field="year"></dd></div>
+        <div><dt>Mileage</dt><dd data-field="mileage"></dd></div>
+        <div><dt>Color</dt><dd data-field="color"></dd></div>
+        <div><dt>VIN</dt><dd data-field="vin"></dd></div>
+      </dl>
+
+      <a class="btn-wa modal-wa" href="#" target="_blank" rel="noopener" data-modal-wa>
+        <WhatsAppIcon size={20} /> Buy on WhatsApp
+      </a>
+    </div>
+  </div>
+</dialog>
+
+<style>
+  .car-modal {
+    width: min(64rem, calc(100% - 2rem));
+    max-height: calc(100dvh - 2rem);
+    margin: auto;
+    padding: 0;
+    border: 0;
+    background: var(--bg);
+    color: var(--ink);
+    overflow-y: auto;
+  }
+  .car-modal::backdrop {
+    background: rgb(0 0 0 / 0.8);
+  }
+  .car-modal[open] {
+    animation: modal-in 0.3s ease;
+  }
+  @keyframes modal-in {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+  }
+  .modal-inner {
+    position: relative;
+    display: grid;
+  }
+  .modal-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    z-index: 5;
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    background: #000;
+    color: #fff;
+    transition: background-color 0.2s ease;
+  }
+  .modal-close:hover {
+    background: var(--red);
+  }
+  .modal-gallery {
+    background: #000;
+  }
+  .modal-carousel {
+    aspect-ratio: 4 / 3;
+  }
+  .modal-badge {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+    z-index: 3;
+    background: #fff;
+    padding: 0.5rem 0.75rem;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .thumbs {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    overflow-x: auto;
+    background: #000;
+  }
+  .thumbs:empty {
+    display: none;
+  }
+  .thumbs :global(button) {
+    flex: 0 0 5rem;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    opacity: 0.45;
+    outline: 2px solid transparent;
+    outline-offset: -2px;
+    transition: opacity 0.2s ease, outline-color 0.2s ease;
+  }
+  .thumbs :global(button:hover) {
+    opacity: 0.8;
+  }
+  .thumbs :global(button[aria-current='true']) {
+    opacity: 1;
+    outline-color: var(--red);
+  }
+  .thumbs :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .modal-details {
+    display: flex;
+    flex-direction: column;
+    padding: 1.75rem 1.5rem 1.5rem;
+  }
+  .modal-meta {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgb(0 0 0 / 0.45);
+  }
+  .modal-title {
+    margin-top: 0.5rem;
+    font-family: var(--font-condensed);
+    font-size: 2.75rem;
+    font-weight: 900;
+    line-height: 0.95;
+    text-transform: uppercase;
+    letter-spacing: -0.01em;
+  }
+  .modal-price {
+    margin-top: 1rem;
+    font-family: var(--font-condensed);
+    font-size: 2rem;
+    font-weight: 700;
+  }
+  .modal-desc {
+    margin-top: 1rem;
+    font-size: 14px;
+    line-height: 1.6;
+    color: rgb(0 0 0 / 0.6);
+  }
+  .specs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-block: 1.5rem;
+    border-top: 1px solid rgb(0 0 0 / 0.15);
+  }
+  .specs div {
+    padding-block: 0.875rem;
+    border-bottom: 1px solid rgb(0 0 0 / 0.15);
+  }
+  .specs dt {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgb(0 0 0 / 0.45);
+  }
+  .specs dd {
+    margin-top: 0.25rem;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .modal-wa {
+    margin-top: auto;
+    width: 100%;
+    padding-block: 1.125rem;
+  }
+
+  /* En móvil el botón queda fijo abajo mientras se hace scroll */
+  @media (max-width: 899px) {
+    .modal-wa {
+      position: sticky;
+      bottom: 1rem;
+      box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .modal-inner {
+      grid-template-columns: 1.35fr 1fr;
+    }
+    .modal-details {
+      padding: 3.5rem 2.25rem 2.25rem;
+    }
+    .modal-title {
+      font-size: 3.25rem;
+    }
+  }
+</style>
+
+<script>
+  import { initCarousel } from '../scripts/carousel';
+  import { whatsappLink } from '../data/site';
+  import {
+    type Car,
+    statusLabel,
+    formatPrice,
+    formatNumber,
+    carWhatsappMessage,
+  } from '../data/cars';
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-car-modal]');
+  const dataEl = document.getElementById('cars-data');
+  const cars: Car[] = dataEl ? JSON.parse(dataEl.textContent || '[]') : [];
+
+  function setField(name: string, value: string) {
+    dialog?.querySelectorAll<HTMLElement>(`[data-field="${name}"]`).forEach((el) => {
+      el.textContent = value;
+    });
+  }
+
+  function makeImg(src: string, alt: string) {
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = alt;
+    img.decoding = 'async';
+    return img;
+  }
+
+  function openCar(id: string, startIndex = 0) {
+    const car = cars.find((c) => c.id === id);
+    if (!car || !dialog) return;
+    const name = `${car.make} ${car.model}`;
+
+    setField('meta', `${car.year} · ${formatNumber(car.mileage)} miles`);
+    setField('make', car.make);
+    setField('model', car.model);
+    setField('price', formatPrice(car.price));
+    setField('description', car.description);
+    setField('year', String(car.year));
+    setField('mileage', `${formatNumber(car.mileage)} mi`);
+    setField('color', car.color);
+    setField('vin', car.vin);
+    setField('status', statusLabel[car.status]);
+
+    const wa = dialog.querySelector<HTMLAnchorElement>('[data-modal-wa]');
+    if (wa) wa.href = whatsappLink(carWhatsappMessage(car));
+
+    // Reconstruye el carrusel (clonando para limpiar listeners anteriores)
+    const oldCarousel = dialog.querySelector<HTMLElement>('[data-carousel]');
+    if (!oldCarousel) return;
+    const carousel = oldCarousel.cloneNode(true) as HTMLElement;
+    oldCarousel.replaceWith(carousel);
+    const track = carousel.querySelector<HTMLElement>('[data-track]')!;
+    track.innerHTML = '';
+    car.images.forEach((src, i) => {
+      const slide = document.createElement('div');
+      slide.className = 'slide';
+      slide.appendChild(makeImg(src, `${name} — photo ${i + 1}`));
+      track.appendChild(slide);
+    });
+
+    const thumbs = dialog.querySelector<HTMLElement>('[data-thumbs]')!;
+    thumbs.innerHTML = '';
+    const thumbButtons: HTMLButtonElement[] = [];
+
+    dialog.showModal();
+    document.documentElement.style.overflow = 'hidden';
+
+    const controller = initCarousel(carousel, (i) => {
+      thumbButtons.forEach((b, j) => b.setAttribute('aria-current', String(i === j)));
+      thumbButtons[i]?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+
+    if (car.images.length > 1) {
+      car.images.forEach((src, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.setAttribute('aria-label', `Show photo ${i + 1}`);
+        btn.appendChild(makeImg(src.replace('w=1200', 'w=240'), ''));
+        btn.addEventListener('click', () => controller?.goTo(i));
+        thumbs.appendChild(btn);
+        thumbButtons.push(btn);
+      });
+    }
+
+    controller?.goTo(startIndex, false);
+    dialog.scrollTop = 0;
+  }
+
+  // Abrir desde la tarjeta: clic en la info o en la foto
+  document.querySelectorAll<HTMLElement>('[data-car]').forEach((card) => {
+    const id = card.dataset.car!;
+    const track = card.querySelector<HTMLElement>('[data-track]');
+    const currentIndex = () =>
+      track ? Math.round(track.scrollLeft / Math.max(track.clientWidth, 1)) : 0;
+
+    card.querySelector('[data-open-car]')?.addEventListener('click', () => openCar(id, currentIndex()));
+    track?.addEventListener('click', () => openCar(id, currentIndex()));
+  });
+
+  dialog?.querySelector('[data-modal-close]')?.addEventListener('click', () => dialog.close());
+  dialog?.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close(); // clic en el fondo
+  });
+  dialog?.addEventListener('close', () => {
+    document.documentElement.style.overflow = '';
+  });
+</script>

@@ -1,0 +1,228 @@
+---
+import type { MonthPoint } from '../../lib/reports';
+import { compactMoney, money } from '../../lib/format';
+
+interface Props {
+  months: MonthPoint[];
+}
+const { months } = Astro.props;
+
+// Escala Y con números redondos
+const max = Math.max(...months.map((m) => m.gross), 0);
+function niceStep(v: number) {
+  if (v <= 0) return 1000;
+  const raw = v / 4;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const n = raw / pow;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * pow;
+}
+const step = niceStep(max);
+const top = Math.max(step * 4, step * Math.ceil(max / step));
+const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step);
+
+const W = 1000;
+const H = 300;
+const x = (i: number) => (months.length === 1 ? W / 2 : (i / (months.length - 1)) * W);
+const y = (v: number) => H - (v / top) * H;
+const line = months.map((m, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(m.gross).toFixed(1)}`).join(' ');
+const area = `${line} L${W},${H} L0,${H} Z`;
+const total = months.reduce((a, m) => a + m.gross, 0);
+const last = months[months.length - 1];
+const points = months.map((m, i) => ({ ...m, xp: (x(i) / W) * 100, yp: (y(m.gross) / H) * 100 }));
+---
+
+<div class="chart" data-chart>
+  <div class="plot-wrap">
+    <div class="y-axis" aria-hidden="true">
+      {ticks.map((t) => <span style={`bottom:${(t / top) * 100}%`}>{compactMoney(t)}</span>)}
+    </div>
+    <div class="plot" data-plot role="img" aria-label={`Ventas brutas por mes, últimos 12 meses. Total ${money(total)}.`}>
+      {ticks.map((t) => <div class="grid-line" style={`bottom:${(t / top) * 100}%`} />)}
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true">
+        <path d={area} class="area" />
+        <path d={line} class="line" vector-effect="non-scaling-stroke" />
+      </svg>
+      <span class="end-dot" style={`left:${points.at(-1)!.xp}%;top:${points.at(-1)!.yp}%`}></span>
+      <div class="crosshair" data-crosshair hidden></div>
+      <span class="hover-dot" data-hover-dot hidden></span>
+      <div class="tip" data-tip hidden></div>
+    </div>
+  </div>
+  <div class="x-axis" aria-hidden="true">
+    {months.map((m, i) => <span class:list={{ dim: i % 2 === 1 }}>{m.label}</span>)}
+  </div>
+  <script type="application/json" data-points set:html={JSON.stringify(points)} />
+  <p class="sr-only">Mes actual ({last.label}): {money(last.gross)} en ventas.</p>
+</div>
+
+<style>
+  .chart {
+    margin-top: 1.5rem;
+  }
+  .plot-wrap {
+    display: grid;
+    grid-template-columns: 3.25rem 1fr;
+    height: 15rem;
+  }
+  .y-axis {
+    position: relative;
+  }
+  .y-axis span {
+    position: absolute;
+    right: 0.625rem;
+    transform: translateY(50%);
+    font-size: 11px;
+    color: var(--a-faint);
+    font-variant-numeric: tabular-nums;
+  }
+  .plot {
+    position: relative;
+    touch-action: pan-y;
+  }
+  .grid-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #efedea;
+  }
+  svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  .area {
+    fill: var(--red);
+    opacity: 0.1;
+  }
+  .line {
+    fill: none;
+    stroke: var(--red);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .end-dot,
+  .hover-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    margin: -5px 0 0 -5px;
+    border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 0 2px #fff;
+    pointer-events: none;
+  }
+  .crosshair {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgb(0 0 0 / 0.25);
+    pointer-events: none;
+  }
+  .tip {
+    position: absolute;
+    top: 0;
+    z-index: 3;
+    min-width: 10rem;
+    padding: 0.75rem 0.875rem;
+    background: #111;
+    color: #fff;
+    font-size: 12px;
+    pointer-events: none;
+    transform: translateX(12px);
+  }
+  .tip.left {
+    transform: translateX(calc(-100% - 12px));
+  }
+  .tip :global(.t-month) {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgb(255 255 255 / 0.6);
+  }
+  .tip :global(.t-value) {
+    margin-top: 0.25rem;
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .tip :global(.t-row) {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.25rem;
+    color: rgb(255 255 255 / 0.75);
+    font-variant-numeric: tabular-nums;
+  }
+  .x-axis {
+    display: flex;
+    justify-content: space-between;
+    margin: 0.75rem 0 0 3.25rem;
+  }
+  .x-axis span {
+    flex: 0 0 0;
+    white-space: nowrap;
+    display: flex;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--a-faint);
+  }
+  @media (max-width: 640px) {
+    .x-axis .dim {
+      visibility: hidden;
+    }
+  }
+</style>
+
+<script>
+  import { money } from '../../scripts/admin';
+
+  document.querySelectorAll<HTMLElement>('[data-chart]').forEach((chart) => {
+    const plot = chart.querySelector<HTMLElement>('[data-plot]')!;
+    const cross = chart.querySelector<HTMLElement>('[data-crosshair]')!;
+    const dot = chart.querySelector<HTMLElement>('[data-hover-dot]')!;
+    const tip = chart.querySelector<HTMLElement>('[data-tip]')!;
+    const points: any[] = JSON.parse(chart.querySelector('[data-points]')?.textContent || '[]');
+    if (!points.length) return;
+
+    function show(clientX: number) {
+      const r = plot.getBoundingClientRect();
+      const pct = ((clientX - r.left) / r.width) * 100;
+      let best = points[0];
+      for (const p of points) if (Math.abs(p.xp - pct) < Math.abs(best.xp - pct)) best = p;
+      cross.hidden = dot.hidden = tip.hidden = false;
+      cross.style.left = `${best.xp}%`;
+      dot.style.left = `${best.xp}%`;
+      dot.style.top = `${best.yp}%`;
+      tip.style.left = `${best.xp}%`;
+      tip.classList.toggle('left', best.xp > 60);
+      tip.replaceChildren();
+      const add = (cls: string, text: string, extra?: string) => {
+        const d = document.createElement('div');
+        d.className = cls;
+        if (extra !== undefined) {
+          const a = document.createElement('span');
+          a.textContent = text;
+          const b = document.createElement('span');
+          b.textContent = extra;
+          d.append(a, b);
+        } else d.textContent = text;
+        tip.appendChild(d);
+      };
+      add('t-month', best.label);
+      add('t-value', money(best.gross));
+      add('t-row', 'Ganancia', money(best.profit));
+      add('t-row', 'Unidades', String(best.units));
+    }
+    function hide() {
+      cross.hidden = dot.hidden = tip.hidden = true;
+    }
+    plot.addEventListener('pointermove', (e) => show(e.clientX));
+    plot.addEventListener('pointerdown', (e) => show(e.clientX));
+    plot.addEventListener('pointerleave', hide);
+  });
+</script>

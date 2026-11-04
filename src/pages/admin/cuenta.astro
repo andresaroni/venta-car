@@ -1,0 +1,60 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+const user = Astro.locals.user!;
+---
+
+<AdminLayout title="Mi cuenta" section="cuenta">
+  <p class="a-eyebrow red">Cuenta / 04</p>
+  <h1 class="a-title a-h1" style="margin-top:.75rem">Mi cuenta.</h1>
+  <p class="a-lead">
+    {user.name} · @{user.username} · {user.role === 'admin' ? 'Administrador' : 'Vendedor'}
+  </p>
+
+  <form class="a-card a-card-pad pass" data-pass-form novalidate>
+    <h2 class="a-title a-h3">Cambiar contraseña</h2>
+    <div class="a-error" data-pass-error hidden role="alert"></div>
+    <label class="a-field">
+      <span class="a-label">Contraseña actual</span>
+      <input class="a-input" name="current" type="password" autocomplete="current-password" required />
+    </label>
+    <label class="a-field">
+      <span class="a-label">Nueva contraseña</span>
+      <input class="a-input" name="password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo 6 caracteres" />
+    </label>
+    <label class="a-field">
+      <span class="a-label">Repite la nueva contraseña</span>
+      <input class="a-input" name="confirm" type="password" autocomplete="new-password" required />
+    </label>
+    <button class="a-btn a-btn-primary" type="submit">Actualizar contraseña</button>
+  </form>
+</AdminLayout>
+
+<style>
+  .pass {
+    max-width: 28rem;
+    margin-top: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+</style>
+
+<script>
+  import { api, showError, toast } from '../../scripts/admin';
+
+  const form = document.querySelector<HTMLFormElement>('[data-pass-form]')!;
+  const error = form.querySelector<HTMLElement>('[data-pass-error]');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    error!.hidden = true;
+    const f = form.elements as any;
+    if (f.password.value !== f.confirm.value) return showError(error, 'Las contraseñas nuevas no coinciden.');
+    try {
+      await api('POST', '/api/admin/account', { current: f.current.value, password: f.password.value });
+      form.reset();
+      toast('Contraseña actualizada');
+    } catch (err) {
+      showError(error, (err as Error).message);
+    }
+  });
+</script>

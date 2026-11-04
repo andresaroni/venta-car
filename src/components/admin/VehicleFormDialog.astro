@@ -1,0 +1,675 @@
+---
+import { COST_LABELS } from '../../lib/vehicles';
+const costKeys = Object.keys(COST_LABELS) as (keyof typeof COST_LABELS)[];
+const year = new Date().getFullYear();
+---
+
+<dialog class="a-modal wide" data-static data-vehicle-dialog aria-labelledby="vf-title">
+  <form class="vf" data-vehicle-form novalidate>
+    <div class="a-modal-head">
+      <div>
+        <p class="a-eyebrow red" data-vf-eyebrow>Inventario / Nuevo vehículo</p>
+        <h2 class="a-title a-h2" id="vf-title" style="margin-top:.5rem" data-vf-title>Agregar vehículo</h2>
+        <p class="a-lead">
+          Registra todos los gastos del vehículo y el precio al que lo quieres vender. La ganancia se calcula sola.
+        </p>
+      </div>
+      <button type="button" class="a-icon-btn" aria-label="Cerrar" data-close>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+      </button>
+    </div>
+
+    <div class="a-modal-body">
+      <div class="a-error" data-vf-error hidden role="alert"></div>
+
+      <!-- 01 Datos -->
+      <section class="a-section">
+        <div class="a-section-head">
+          <span class="step">01</span>
+          <h3>Datos del vehículo</h3>
+          <p>* obligatorio</p>
+        </div>
+        <div class="a-grid-2">
+          <label class="a-field">
+            <span class="a-label">Marca *</span>
+            <input class="a-input" name="make" placeholder="Ej. Porsche" required list="vf-makes" />
+            <datalist id="vf-makes">
+              <option value="Audi"></option><option value="BMW"></option><option value="Chevrolet"></option>
+              <option value="Ford"></option><option value="Honda"></option><option value="Lamborghini"></option>
+              <option value="Mercedes-Benz"></option><option value="Nissan"></option><option value="Porsche"></option>
+              <option value="Toyota"></option><option value="Volkswagen"></option>
+            </datalist>
+          </label>
+          <label class="a-field">
+            <span class="a-label">Modelo *</span>
+            <input class="a-input" name="model" placeholder="Ej. 911" required />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Versión <span class="opt">(opcional)</span></span>
+            <input class="a-input" name="version" placeholder="Ej. Carrera S" />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Año *</span>
+            <input class="a-input" name="year" type="number" inputmode="numeric" min="1900" max={year + 1} placeholder={String(year)} required />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Millaje (millas)</span>
+            <input class="a-input" name="mileage" type="number" inputmode="numeric" min="0" placeholder="0" />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Color</span>
+            <input class="a-input" name="color" placeholder="Ej. Agate Grey" />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Número VIN</span>
+            <input class="a-input" name="vin" placeholder="17 caracteres" maxlength="40" style="text-transform:uppercase" />
+          </label>
+          <label class="a-field">
+            <span class="a-label">Dueños anteriores</span>
+            <input class="a-input" name="owners" type="number" inputmode="numeric" min="0" placeholder="0" />
+          </label>
+          <label class="a-field a-span-2">
+            <span class="a-label">Lugar de compra <span class="opt">(interno)</span></span>
+            <input class="a-input" name="purchasePlace" placeholder="Ej. Subasta Copart, particular, concesionario…" />
+          </label>
+          <label class="a-field a-span-2">
+            <span class="a-label">Descripción <span class="opt">(se muestra en la página)</span></span>
+            <textarea class="a-textarea" name="description" maxlength="1500" placeholder="Motor, equipamiento, historial de servicio…"></textarea>
+          </label>
+        </div>
+      </section>
+
+      <!-- 02 Gastos -->
+      <section class="a-section">
+        <div class="a-section-head">
+          <span class="step">02</span>
+          <h3>Gastos</h3>
+          <p>Todo lo que costó el vehículo</p>
+        </div>
+        <div class="a-grid-2">
+          {
+            costKeys.map((k) => (
+              <label class="a-field">
+                <span class="a-label">{COST_LABELS[k]}</span>
+                <span class="a-input-money">
+                  <input class="a-input num" name={`cost_${k}`} type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" data-cost />
+                </span>
+              </label>
+            ))
+          }
+        </div>
+
+        <div class="extras">
+          <p class="a-label">Otros gastos</p>
+          <div class="extras-list" data-extras></div>
+          <button type="button" class="add-extra" data-add-extra>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+            Agregar otro gasto
+          </button>
+        </div>
+
+        <div class="total-box">
+          <span>Gastos totales</span>
+          <strong class="num" data-total-expenses>$0</strong>
+        </div>
+      </section>
+
+      <!-- 03 Precio -->
+      <section class="a-section">
+        <div class="a-section-head">
+          <span class="step">03</span>
+          <h3>Precio de venta</h3>
+          <p>Se puede negociar al vender</p>
+        </div>
+        <div class="a-grid-2">
+          <label class="a-field">
+            <span class="a-label">Precio de venta *</span>
+            <span class="a-input-money">
+              <input class="a-input num" name="salePrice" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" required data-price />
+            </span>
+          </label>
+          <div class="profit-box" data-profit-box>
+            <span class="a-label">Ganancia proyectada</span>
+            <strong class="num" data-profit>$0</strong>
+            <small data-margin>—</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 04 Fotos -->
+      <section class="a-section">
+        <div class="a-section-head">
+          <span class="step">04</span>
+          <h3>Fotos</h3>
+          <p>La primera es la portada</p>
+        </div>
+        <label class="dropzone" data-dropzone>
+          <input type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" data-file-input />
+          <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg>
+          <span><strong>Haz clic o arrastra las fotos aquí</strong>Puedes elegir varias a la vez · JPG, PNG o WebP</span>
+        </label>
+        <ul class="photos" data-photos></ul>
+      </section>
+    </div>
+
+    <div class="a-modal-foot vf-foot">
+      <div class="summary">
+        <div><span>Gastos</span><strong class="num" data-sum-expenses>$0</strong></div>
+        <div><span>Venta</span><strong class="num" data-sum-price>$0</strong></div>
+        <div><span>Ganancia</span><strong class="num" data-sum-profit>$0</strong></div>
+      </div>
+      <div class="vf-actions">
+        <button type="button" class="a-btn a-btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="a-btn a-btn-primary" data-vf-submit>Guardar vehículo</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<template id="extra-row">
+  <div class="extra-row">
+    <input class="a-input" name="extra_concept" placeholder="Concepto (ej. transporte, grúa, lavado)" maxlength="80" />
+    <span class="a-input-money">
+      <input class="a-input num" name="extra_amount" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" data-cost />
+    </span>
+    <button type="button" class="a-icon-btn" aria-label="Quitar gasto" data-remove-extra>
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+    </button>
+  </div>
+</template>
+
+<style>
+  .extras {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .extras-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+  .extras-list:empty {
+    display: none;
+  }
+  :global(.extra-row) {
+    display: grid;
+    grid-template-columns: 1fr 9rem 2.5rem;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .add-extra {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    padding: 0.5rem 0;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--red);
+  }
+  .add-extra:hover {
+    color: #b9271f;
+  }
+  .total-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: #111;
+    color: #fff;
+  }
+  .total-box span {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .total-box strong {
+    font-family: var(--font-condensed);
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .profit-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.875rem 1rem;
+    background: #f4f3f1;
+    border-left: 3px solid var(--a-good);
+  }
+  .profit-box.neg {
+    border-left-color: var(--a-bad);
+  }
+  .profit-box strong {
+    font-family: var(--font-condensed);
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--a-good);
+  }
+  .profit-box.neg strong {
+    color: var(--a-bad);
+  }
+  .profit-box small {
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+
+  .dropzone {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem;
+    border: 1.5px dashed #cfcbc6;
+    background: #faf9f8;
+    color: var(--a-muted);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+  .dropzone:hover,
+  .dropzone.drag {
+    border-color: var(--red);
+    background: #fff6f5;
+  }
+  .dropzone:focus-within {
+    outline: 2px solid var(--red);
+    outline-offset: 2px;
+  }
+  .dropzone span {
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .dropzone strong {
+    display: block;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .photos {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.75rem;
+  }
+  .photos:empty {
+    display: none;
+  }
+  :global(.photo) {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: #111;
+    overflow: hidden;
+  }
+  :global(.photo img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  :global(.photo.uploading img) {
+    opacity: 0.4;
+  }
+  :global(.photo.failed) {
+    outline: 2px solid var(--a-bad);
+  }
+  :global(.photo-status) {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #fff;
+    text-align: center;
+    padding: 0.5rem;
+  }
+  :global(.photo-cover) {
+    position: absolute;
+    left: 0.375rem;
+    top: 0.375rem;
+    padding: 0.25rem 0.4rem;
+    background: var(--red);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  :global(.photo-tools) {
+    position: absolute;
+    inset: auto 0 0 0;
+    display: flex;
+    justify-content: space-between;
+    background: linear-gradient(to top, rgb(0 0 0 / 0.75), transparent);
+    padding: 1rem 0.25rem 0.25rem;
+  }
+  :global(.photo-tools button) {
+    display: grid;
+    place-items: center;
+    width: 1.875rem;
+    height: 1.875rem;
+    color: #fff;
+  }
+  :global(.photo-tools button:hover:not(:disabled)) {
+    background: rgb(255 255 255 / 0.2);
+  }
+  :global(.photo-tools button:disabled) {
+    opacity: 0.3;
+    cursor: default;
+  }
+
+  .vf-foot {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .summary {
+    display: flex;
+    gap: 1.5rem;
+  }
+  .summary div {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  .summary span {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--a-faint);
+  }
+  .summary strong {
+    font-size: 15px;
+  }
+  .vf-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+  @media (max-width: 520px) {
+    .summary {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .vf-actions {
+      width: 100%;
+    }
+    .vf-actions .a-btn {
+      flex: 1;
+    }
+    :global(.extra-row) {
+      grid-template-columns: 1fr 7rem 2.5rem;
+    }
+  }
+</style>
+
+<script>
+  import { api, money, parseMoney, reloadWith, showError } from '../../scripts/admin';
+
+  type Photo = { key: string; url?: string; preview: string; uploading: boolean; error?: string };
+
+  const dialog = document.querySelector<HTMLDialogElement>('[data-vehicle-dialog]')!;
+  const form = dialog.querySelector<HTMLFormElement>('[data-vehicle-form]')!;
+  const errorBox = form.querySelector<HTMLElement>('[data-vf-error]');
+  const submitBtn = form.querySelector<HTMLButtonElement>('[data-vf-submit]')!;
+  const extrasList = form.querySelector<HTMLElement>('[data-extras]')!;
+  const extraTpl = document.getElementById('extra-row') as HTMLTemplateElement;
+  const photosList = form.querySelector<HTMLElement>('[data-photos]')!;
+  const fileInput = form.querySelector<HTMLInputElement>('[data-file-input]')!;
+  const dropzone = form.querySelector<HTMLElement>('[data-dropzone]')!;
+
+  let editingId: number | null = null;
+  let photos: Photo[] = [];
+
+  // ---------- totales ----------
+  function totals() {
+    let expenses = 0;
+    form.querySelectorAll<HTMLInputElement>('[data-cost]').forEach((i) => (expenses += parseMoney(i.value)));
+    const price = parseMoney(form.querySelector<HTMLInputElement>('[data-price]')!.value);
+    return { expenses, price, profit: price - expenses };
+  }
+
+  function renderTotals() {
+    const t = totals();
+    const set = (sel: string, txt: string) => form.querySelectorAll(sel).forEach((el) => (el.textContent = txt));
+    set('[data-total-expenses]', money(t.expenses));
+    set('[data-sum-expenses]', money(t.expenses));
+    set('[data-sum-price]', money(t.price));
+    set('[data-sum-profit]', money(t.profit));
+    set('[data-profit]', money(t.profit));
+    const margin = t.price > 0 ? `${((t.profit / t.price) * 100).toFixed(1)}% de margen sobre el precio de venta` : '—';
+    set('[data-margin]', margin);
+    const neg = t.profit < 0;
+    form.querySelector('[data-profit-box]')!.classList.toggle('neg', neg);
+    const sumProfit = form.querySelector<HTMLElement>('[data-sum-profit]')!;
+    sumProfit.classList.toggle('money-bad', neg);
+    sumProfit.classList.toggle('money-good', !neg && t.profit > 0);
+  }
+  form.addEventListener('input', renderTotals);
+
+  // ---------- otros gastos ----------
+  function addExtra(concept = '', amount: number | '' = '') {
+    const node = extraTpl.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    node.querySelector<HTMLInputElement>('[name=extra_concept]')!.value = concept;
+    node.querySelector<HTMLInputElement>('[name=extra_amount]')!.value = amount === '' ? '' : String(amount);
+    node.querySelector('[data-remove-extra]')!.addEventListener('click', () => {
+      node.remove();
+      renderTotals();
+    });
+    extrasList.appendChild(node);
+    return node;
+  }
+  form.querySelector('[data-add-extra]')!.addEventListener('click', () => {
+    addExtra().querySelector('input')?.focus();
+  });
+
+  // ---------- fotos ----------
+  async function compress(file: File): Promise<Blob> {
+    const MAX = 1800;
+    try {
+      const bmp = await createImageBitmap(file);
+      const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(bmp.width * scale);
+      canvas.height = Math.round(bmp.height * scale);
+      canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      bmp.close();
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/jpeg', 0.85));
+      return blob ?? file;
+    } catch {
+      return file;
+    }
+  }
+
+  function renderPhotos() {
+    photosList.innerHTML = '';
+    photos.forEach((p, i) => {
+      const li = document.createElement('li');
+      li.className = 'photo' + (p.uploading ? ' uploading' : '') + (p.error ? ' failed' : '');
+      const img = document.createElement('img');
+      img.src = p.url || p.preview;
+      img.alt = `Foto ${i + 1}`;
+      li.appendChild(img);
+      if (i === 0 && !p.error) {
+        const c = document.createElement('span');
+        c.className = 'photo-cover';
+        c.textContent = 'Portada';
+        li.appendChild(c);
+      }
+      if (p.uploading || p.error) {
+        const s = document.createElement('span');
+        s.className = 'photo-status';
+        s.textContent = p.uploading ? 'Subiendo…' : p.error!;
+        li.appendChild(s);
+      }
+      const tools = document.createElement('div');
+      tools.className = 'photo-tools';
+      const btn = (label: string, path: string, disabled: boolean, fn: () => void) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-label', label);
+        b.title = label;
+        b.disabled = disabled;
+        b.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+        b.addEventListener('click', fn);
+        return b;
+      };
+      const move = (to: number) => {
+        const [item] = photos.splice(i, 1);
+        photos.splice(to, 0, item);
+        renderPhotos();
+      };
+      tools.append(
+        btn('Mover a la izquierda', '<path d="m15 18-6-6 6-6"/>', i === 0, () => move(i - 1)),
+        btn('Usar como portada', '<path d="M11.5 2.5 14 8l6 .5-4.5 4 1.5 6-5.5-3.2L6 18.5l1.5-6L3 8.5 9 8z"/>', i === 0, () => move(0)),
+        btn('Quitar foto', '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', false, () => {
+          photos.splice(i, 1);
+          renderPhotos();
+        }),
+        btn('Mover a la derecha', '<path d="m9 18 6-6-6-6"/>', i === photos.length - 1, () => move(i + 1)),
+      );
+      li.appendChild(tools);
+      photosList.appendChild(li);
+    });
+    submitBtn.disabled = photos.some((p) => p.uploading);
+  }
+
+  async function addFiles(files: FileList | File[]) {
+    const list = Array.from(files).filter((f) => /^image\/(jpeg|png|webp)$/.test(f.type));
+    if (!list.length) return;
+    const items = list.map((f) => ({
+      key: Math.random().toString(36).slice(2),
+      preview: URL.createObjectURL(f),
+      uploading: true,
+      file: f,
+    }));
+    photos.push(...items.map(({ file, ...p }) => p));
+    renderPhotos();
+    // Subida de 3 en 3
+    const queue = [...items];
+    const worker = async () => {
+      while (queue.length) {
+        const item = queue.shift()!;
+        const photo = photos.find((p) => p.key === item.key);
+        try {
+          const blob = await compress(item.file);
+          const fd = new FormData();
+          fd.append('file', new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }));
+          const { url } = await api<{ url: string }>('POST', '/api/admin/uploads', fd);
+          if (photo) photo.url = url;
+        } catch (err) {
+          if (photo) photo.error = 'Error al subir';
+        } finally {
+          if (photo) photo.uploading = false;
+          renderPhotos();
+        }
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  }
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files) addFiles(fileInput.files);
+    fileInput.value = '';
+  });
+  ['dragenter', 'dragover'].forEach((ev) =>
+    dropzone.addEventListener(ev, (e) => {
+      e.preventDefault();
+      dropzone.classList.add('drag');
+    }),
+  );
+  ['dragleave', 'drop'].forEach((ev) =>
+    dropzone.addEventListener(ev, () => dropzone.classList.remove('drag')),
+  );
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer?.files) addFiles(e.dataTransfer.files);
+  });
+
+  // ---------- abrir ----------
+  function open(vehicle?: any) {
+    form.reset();
+    extrasList.innerHTML = '';
+    errorBox!.hidden = true;
+    editingId = vehicle?.id ?? null;
+    photos = (vehicle?.images ?? []).map((url: string) => ({
+      key: url,
+      url,
+      preview: url,
+      uploading: false,
+    }));
+
+    form.querySelector('[data-vf-eyebrow]')!.textContent = vehicle ? 'Inventario / Editar' : 'Inventario / Nuevo vehículo';
+    form.querySelector('[data-vf-title]')!.textContent = vehicle ? 'Editar vehículo' : 'Agregar vehículo';
+    submitBtn.textContent = vehicle ? 'Guardar cambios' : 'Guardar vehículo';
+
+    if (vehicle) {
+      const f = form.elements as any;
+      for (const k of ['make', 'model', 'version', 'year', 'mileage', 'color', 'vin', 'owners', 'purchasePlace', 'description', 'salePrice'])
+        if (f[k]) f[k].value = vehicle[k] ?? '';
+      for (const [k, v] of Object.entries(vehicle.costs ?? {})) if (f[`cost_${k}`]) f[`cost_${k}`].value = v || '';
+      for (const e of vehicle.extraExpenses ?? []) addExtra(e.concept, e.amount);
+    }
+    renderPhotos();
+    renderTotals();
+    dialog.showModal();
+    dialog.scrollTop = 0;
+  }
+
+  document.addEventListener('vehicle:open', (e) => open((e as CustomEvent).detail));
+
+  dialog.addEventListener('close', () => {
+    photos.forEach((p) => p.preview.startsWith('blob:') && URL.revokeObjectURL(p.preview));
+  });
+
+  // ---------- guardar ----------
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errorBox!.hidden = true;
+    if (photos.some((p) => p.uploading)) return showError(errorBox, 'Espera a que terminen de subir las fotos.');
+    const f = form.elements as any;
+    const extras = Array.from(extrasList.querySelectorAll('.extra-row')).map((row) => ({
+      concept: (row.querySelector('[name=extra_concept]') as HTMLInputElement).value,
+      amount: parseMoney((row.querySelector('[name=extra_amount]') as HTMLInputElement).value),
+    }));
+    const body = {
+      make: f.make.value,
+      model: f.model.value,
+      version: f.version.value,
+      year: f.year.value,
+      mileage: f.mileage.value,
+      color: f.color.value,
+      vin: f.vin.value,
+      owners: f.owners.value,
+      purchasePlace: f.purchasePlace.value,
+      description: f.description.value,
+      costs: {
+        purchase: f.cost_purchase.value,
+        taxes: f.cost_taxes.value,
+        mechanical: f.cost_mechanical.value,
+        parts: f.cost_parts.value,
+        repair: f.cost_repair.value,
+      },
+      extraExpenses: extras,
+      salePrice: f.salePrice.value,
+      images: photos.filter((p) => p.url && !p.error).map((p) => p.url),
+    };
+    submitBtn.disabled = true;
+    const label = submitBtn.textContent;
+    submitBtn.textContent = 'Guardando…';
+    try {
+      if (editingId) await api('PUT', `/api/admin/vehicles/${editingId}`, body);
+      else await api('POST', '/api/admin/vehicles', body);
+      reloadWith(editingId ? 'Vehículo actualizado' : 'Vehículo agregado al inventario');
+    } catch (err) {
+      showError(errorBox, (err as Error).message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = label;
+    }
+  });
+</script>

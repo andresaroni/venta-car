@@ -1,0 +1,68 @@
+---
+import WhatsAppIcon from './WhatsAppIcon.astro';
+import { site, whatsappLink } from '../data/site';
+---
+
+<section id="contact" class="contact">
+  <div class="container contact-inner">
+    <div>
+      <p class="eyebrow">Beyond the purchase / 02</p>
+      <h2 class="display contact-title">The road<br />is <span class="text-red">yours.</span></h2>
+    </div>
+
+    <div class="contact-cta">
+      <p class="contact-text">
+        Questions about a vehicle, financing or trade-ins? Talk directly with our team — we reply in minutes.
+      </p>
+      <a class="btn-wa contact-btn" href={whatsappLink(site.contactMessage)} target="_blank" rel="noopener">
+        <WhatsAppIcon size={22} />
+        Chat on WhatsApp
+      </a>
+    </div>
+  </div>
+</section>
+
+<style>
+  .contact {
+    background: #000;
+    color: #fff;
+    padding-block: 6rem;
+  }
+  .contact-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+  }
+  .contact .eyebrow {
+    margin-bottom: 1rem;
+    font-weight: 400;
+  }
+  .contact-title {
+    line-height: 0.9;
+    letter-spacing: 0;
+  }
+  .contact-cta {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    max-width: 24rem;
+  }
+  .contact-text {
+    font-size: 14px;
+    line-height: 1.5rem;
+    color: rgb(255 255 255 / 0.6);
+  }
+  .contact-btn {
+    width: fit-content;
+    padding: 1.25rem 1.75rem;
+    font-size: 13px;
+  }
+
+  @media (min-width: 768px) {
+    .contact-inner {
+      flex-direction: row;
+      align-items: flex-end;
+      justify-content: space-between;
+    }
+  }
+</style>

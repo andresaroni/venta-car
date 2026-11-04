@@ -1,0 +1,144 @@
+---
+import '../../styles/global.css';
+import '../../styles/admin.css';
+import Logo from '../../components/Logo.astro';
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap"
+    />
+    <title>Acceso · Velocita Admin</title>
+  </head>
+  <body class="login-body">
+    <main class="login">
+      <a href="/" class="login-logo" aria-label="Volver al sitio"><Logo /></a>
+
+      <form class="login-card" data-login novalidate>
+        <p class="a-eyebrow red">Acceso privado</p>
+        <h1 class="a-title login-title">Command center</h1>
+        <p class="login-lead">Gestiona inventario, ventas y equipo.</p>
+
+        <div class="a-error" data-error hidden role="alert"></div>
+
+        <label class="login-field">
+          <span>Usuario</span>
+          <input name="username" autocomplete="username" required autofocus />
+        </label>
+        <label class="login-field">
+          <span>Contraseña</span>
+          <input name="password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <button class="a-btn a-btn-primary a-btn-block login-btn" type="submit">Entrar al panel</button>
+      </form>
+
+      <a href="/" class="back">← Volver al sitio público</a>
+    </main>
+
+    <style>
+      .login-body {
+        min-height: 100vh;
+        background: #161616;
+        color: #fff;
+      }
+      .login {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2.5rem;
+        padding: 3rem 1rem;
+      }
+      .login-card {
+        width: 100%;
+        max-width: 28rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1.25rem;
+        padding: 2.25rem 2rem;
+        background: #232323;
+      }
+      .login-title {
+        font-size: 3rem;
+        margin-top: -0.5rem;
+      }
+      .login-lead {
+        margin-top: -0.75rem;
+        font-size: 14px;
+        color: rgb(255 255 255 / 0.6);
+      }
+      .login-field {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .login-field span {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(255 255 255 / 0.65);
+      }
+      .login-field input {
+        min-height: 2.875rem;
+        padding: 0.7rem 0.875rem;
+        background: #161616;
+        border: 1px solid rgb(255 255 255 / 0.18);
+        color: #fff;
+        font-size: 14px;
+      }
+      .login-field input:focus {
+        outline: none;
+        border-color: var(--red);
+      }
+      .login-btn {
+        margin-top: 0.5rem;
+        min-height: 3rem;
+      }
+      .back {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgb(255 255 255 / 0.55);
+      }
+      .back:hover {
+        color: #fff;
+      }
+    </style>
+
+    <script>
+      import { api, showError } from '../../scripts/admin';
+
+      const form = document.querySelector<HTMLFormElement>('[data-login]')!;
+      const error = form.querySelector<HTMLElement>('[data-error]');
+      const btn = form.querySelector<HTMLButtonElement>('button[type=submit]')!;
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const data = Object.fromEntries(new FormData(form));
+        if (!data.username || !data.password) return showError(error, 'Escribe tu usuario y contraseña.');
+        btn.disabled = true;
+        btn.textContent = 'Entrando…';
+        try {
+          await api('POST', '/api/auth/login', data);
+          window.location.href = '/admin/resumen';
+        } catch (err) {
+          showError(error, (err as Error).message);
+          btn.disabled = false;
+          btn.textContent = 'Entrar al panel';
+        }
+      });
+    </script>
+  </body>
+</html>

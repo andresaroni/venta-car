@@ -1,0 +1,403 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import RevenueChart from '../../components/admin/RevenueChart.astro';
+import { getReport, parsePeriod, PERIOD_LABELS, type Period } from '../../lib/reports';
+import { listUsers } from '../../lib/users';
+import { money, number, shortDate } from '../../lib/format';
+
+const user = Astro.locals.user!;
+const isAdmin = user.role === 'admin';
+
+const period = parsePeriod(Astro.url.searchParams.get('periodo'));
+const sellerParam = Number(Astro.url.searchParams.get('vendedor')) || undefined;
+const sellerFilter = isAdmin ? sellerParam : undefined;
+
+const report = await getReport({
+  period,
+  sellerId: sellerFilter,
+  ownerScope: isAdmin ? undefined : user.id,
+});
+const users = isAdmin ? await listUsers() : [];
+const { totals, previous, stock, months, sellers, ledger } = report;
+
+const pct = (now: number, before: number) => {
+  if (!before) return null;
+  return ((now - before) / Math.abs(before)) * 100;
+};
+const deltas = previous
+  ? {
+      units: pct(totals.units, previous.units),
+      gross: pct(totals.gross, previous.gross),
+      profit: pct(totals.profit, previous.profit),
+    }
+  : null;
+const margin = totals.gross ? (totals.profit / totals.gross) * 100 : 0;
+const avgTicket = totals.units ? totals.gross / totals.units : 0;
+const maxUnits = Math.max(1, ...sellers.map((s) => s.units));
+const scopeName = sellerFilter ? users.find((u) => u.id === sellerFilter)?.name : null;
+
+const periods = Object.entries(PERIOD_LABELS) as [Period, string][];
+const year12 = months.reduce((a, m) => a + m.gross, 0);
+---
+
+<AdminLayout title="Resumen" section="resumen">
+  <form class="head" method="get" data-filters>
+    <div>
+      <p class="a-eyebrow red">Desempeño / 01</p>
+      <h1 class="a-title a-h1" style="margin-top:.75rem">{isAdmin ? 'Resumen.' : 'Mi resumen.'}</h1>
+      <p class="a-lead">
+        {isAdmin ? (scopeName ? `Mostrando solo a ${scopeName}.` : 'Todo el equipo, incluidas tus ventas.') : 'Tus ventas y tu inventario.'}
+      </p>
+    </div>
+    <div class="filters">
+      {
+        isAdmin && (
+          <select class="a-select a-select-sm" name="vendedor" aria-label="Vendedor" data-autosubmit>
+            <option value="">Todo el equipo</option>
+            {users.map((u) => (
+              <option value={u.id} selected={u.id === sellerFilter}>
+                {u.name}
+                {u.id === user.id ? ' (yo)' : ''}
+              </option>
+            ))}
+          </select>
+        )
+      }
+      <select class="a-select a-select-sm" name="periodo" aria-label="Periodo" data-autosubmit>
+        {periods.map(([k, label]) => <option value={k} selected={k === period}>{label}</option>)}
+      </select>
+      <noscript><button class="a-btn a-btn-dark" type="submit">Aplicar</button></noscript>
+    </div>
+  </form>
+
+  <section class="kpis" aria-label="Indicadores">
+    <div class="kpi a-card">
+      <p class="a-eyebrow">Vehículos disponibles</p>
+      <p class="kpi-value">{number(stock.count)}</p>
+      <p class="kpi-sub">{money(stock.expenses)} en gastos de inventario</p>
+    </div>
+    <div class="kpi a-card">
+      <p class="a-eyebrow">Unidades vendidas</p>
+      <p class="kpi-value">{number(totals.units)}</p>
+      {
+        deltas ? (
+          <p class:list={['kpi-sub', deltas.units == null ? '' : deltas.units >= 0 ? 'up' : 'down']}>
+            {deltas.units == null ? `${previous!.units} el periodo anterior` : `${deltas.units >= 0 ? '↑' : '↓'} ${Math.abs(deltas.units).toFixed(0)}% vs periodo anterior`}
+          </p>
+        ) : (
+          <p class="kpi-sub">{PERIOD_LABELS[period]}</p>
+        )
+      }
+    </div>
+    <div class="kpi a-card">
+      <p class="a-eyebrow">Ventas brutas</p>
+      <p class="kpi-value">{money(totals.gross)}</p>
+      {
+        deltas && deltas.gross != null ? (
+          <p class:list={['kpi-sub', deltas.gross >= 0 ? 'up' : 'down']}>
+            {deltas.gross >= 0 ? '↑' : '↓'} {Math.abs(deltas.gross).toFixed(0)}% vs periodo anterior
+          </p>
+        ) : (
+          <p class="kpi-sub">{totals.units ? `Promedio ${money(avgTicket)} por unidad` : 'Sin ventas en el periodo'}</p>
+        )
+      }
+    </div>
+    <div class="kpi a-card">
+      <p class="a-eyebrow">Ganancia neta</p>
+      <p class:list={['kpi-value', { 'money-bad': totals.profit < 0 }]}>{money(totals.profit)}</p>
+      <p class="kpi-sub">
+        {totals.gross ? `${margin.toFixed(1)}% de margen · ${money(totals.expenses)} en gastos` : 'Ventas − gastos'}
+      </p>
+    </div>
+  </section>
+
+  <section class="row">
+    <div class="a-card a-card-pad trend">
+      <div class="card-head">
+        <div>
+          <p class="a-eyebrow">Ventas brutas por mes</p>
+          <h2 class="a-title a-h2" style="margin-top:.375rem">Tendencia de ingresos</h2>
+        </div>
+        <p class="card-note">Últimos 12 meses · <strong class="num">{money(year12)}</strong></p>
+      </div>
+      <RevenueChart months={months} />
+    </div>
+
+    {
+      isAdmin ? (
+        <div class="a-card a-card-pad side">
+          <p class="a-eyebrow">Vendedores por unidades · {PERIOD_LABELS[period].toLowerCase()}</p>
+          <ul class="rank">
+            {sellers.map((s) => (
+              <li>
+                <div class="rank-top">
+                  <span>{s.name}</span>
+                  <span class="num">
+                    <strong>{s.units}</strong> {s.units === 1 ? 'venta' : 'ventas'}
+                  </span>
+                </div>
+                <div class="bar" role="presentation">
+                  <span style={`width:${(s.units / maxUnits) * 100}%`} />
+                </div>
+                <p class="rank-sub num">
+                  {money(s.gross)} vendidos · <span class={s.profit < 0 ? 'money-bad' : ''}>{money(s.profit)} ganancia</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div class="a-card a-card-pad side">
+          <p class="a-eyebrow">Tu inventario actual</p>
+          <dl class="stock">
+            <div><dt>Vehículos disponibles</dt><dd class="num">{stock.count}</dd></div>
+            <div><dt>Gastos invertidos</dt><dd class="num">{money(stock.expenses)}</dd></div>
+            <div><dt>Valor publicado</dt><dd class="num">{money(stock.value)}</dd></div>
+            <div><dt>Ganancia proyectada</dt><dd class:list={['num', stock.projectedProfit < 0 ? 'money-bad' : 'money-good']}>{money(stock.projectedProfit)}</dd></div>
+          </dl>
+          <a href="/admin/inventario" class="a-btn a-btn-outline a-btn-block" style="margin-top:auto">Ir al inventario</a>
+        </div>
+      )
+    }
+  </section>
+
+  <section class="a-card a-card-pad ledger">
+    <div class="card-head">
+      <div>
+        <p class="a-eyebrow">Libro de ventas · {PERIOD_LABELS[period].toLowerCase()}</p>
+        <h2 class="a-title a-h2" style="margin-top:.375rem">{isAdmin ? 'Todas las ventas' : 'Mis ventas'}</h2>
+      </div>
+      <p class="card-note">{ledger.length} {ledger.length === 1 ? 'venta' : 'ventas'}</p>
+    </div>
+
+    {
+      ledger.length === 0 ? (
+        <div class="a-empty">
+          <strong>Sin ventas</strong>
+          No hay ventas registradas en este periodo.
+        </div>
+      ) : (
+        <div class="a-table-wrap">
+          <table class="a-table">
+            <thead>
+              <tr>
+                <th>Vehículo</th>
+                <th>Comprador</th>
+                {isAdmin && <th>Vendedor</th>}
+                <th>Fecha</th>
+                <th class="r">Gastos</th>
+                <th class="r">Precio de venta</th>
+                <th class="r">Ganancia</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledger.map((s) => (
+                <tr>
+                  <td>
+                    <strong class="veh">{s.vehicleLabel}</strong>
+                    {s.vin && <span class="vin">VIN {s.vin}</span>}
+                  </td>
+                  <td>
+                    {s.buyerName || '—'}
+                    {s.buyerPhone && <span class="vin">{s.buyerPhone}</span>}
+                  </td>
+                  {isAdmin && <td>{s.sellerName}</td>}
+                  <td class="nowrap">{shortDate(s.soldAt)}</td>
+                  <td class="r">{money(s.totalExpenses)}</td>
+                  <td class="r">
+                    {money(s.salePrice)}
+                    {s.listPrice && s.listPrice !== s.salePrice ? (
+                      <span class="vin">Publicado {money(s.listPrice)}</span>
+                    ) : null}
+                  </td>
+                  <td class:list={['r strong', s.profit < 0 ? 'money-bad' : 'money-good']}>{money(s.profit)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan={isAdmin ? 4 : 3}>Total</td>
+                <td class="r">{money(totals.expenses)}</td>
+                <td class="r">{money(totals.gross)}</td>
+                <td class:list={['r strong', totals.profit < 0 ? 'money-bad' : 'money-good']}>{money(totals.profit)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )
+    }
+  </section>
+</AdminLayout>
+
+<style>
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .filters .a-select {
+    width: auto;
+    min-width: 11rem;
+  }
+  .kpis {
+    display: grid;
+    gap: 1rem;
+    margin-top: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  }
+  .kpi {
+    padding: 1.25rem 1.25rem 1.125rem;
+  }
+  .kpi-value {
+    margin-top: 1rem;
+    font-family: var(--font-condensed);
+    font-size: 2.5rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .kpi-sub {
+    margin-top: 0.625rem;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .kpi-sub.up {
+    color: var(--a-good);
+  }
+  .kpi-sub.down {
+    color: var(--a-bad);
+  }
+  .row {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  @media (min-width: 1100px) {
+    .row {
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    }
+  }
+  .card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .card-note {
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .card-note strong {
+    color: var(--ink);
+  }
+  .side {
+    display: flex;
+    flex-direction: column;
+  }
+  .rank {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+  }
+  .rank-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 14px;
+  }
+  .rank-top .num {
+    color: var(--a-muted);
+    font-size: 13px;
+  }
+  .rank-top strong {
+    color: var(--ink);
+  }
+  .bar {
+    height: 8px;
+    margin-top: 0.5rem;
+    background: #f1dcdb;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .bar span {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    background: var(--red);
+    border-radius: 4px;
+  }
+  .rank-sub {
+    margin-top: 0.375rem;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .stock {
+    display: flex;
+    flex-direction: column;
+    margin: 1rem 0 1.5rem;
+  }
+  .stock div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-block: 0.875rem;
+    border-bottom: 1px solid var(--a-line);
+    font-size: 14px;
+  }
+  .stock dt {
+    color: var(--a-muted);
+  }
+  .stock dd {
+    font-weight: 700;
+  }
+  .ledger {
+    margin-top: 1rem;
+  }
+  .ledger .a-table-wrap {
+    margin-top: 1.25rem;
+  }
+  .veh {
+    font-weight: 600;
+  }
+  .vin {
+    display: block;
+    margin-top: 0.125rem;
+    font-size: 11px;
+    color: var(--a-faint);
+  }
+  .nowrap {
+    white-space: nowrap;
+  }
+  .strong {
+    font-weight: 700;
+  }
+  tfoot td {
+    border-top: 1px solid #111;
+    border-bottom: 0;
+    font-weight: 700;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLSelectElement>('[data-autosubmit]').forEach((s) =>
+    s.addEventListener('change', () => {
+      const form = s.form!;
+      // No enviar parámetros vacíos
+      const params = new URLSearchParams();
+      for (const [k, v] of new FormData(form)) if (v) params.set(k, String(v));
+      window.location.search = params.toString();
+    }),
+  );
+</script>

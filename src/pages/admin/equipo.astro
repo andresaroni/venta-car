@@ -1,0 +1,327 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { listUsers } from '../../lib/users';
+import { statsByUser } from '../../lib/reports';
+import { initials, money } from '../../lib/format';
+
+const me = Astro.locals.user!;
+const users = await listUsers();
+const stats = await statsByUser();
+const empty = { units: 0, gross: 0, expenses: 0, profit: 0, available: 0 };
+const clientUsers = users.map((u) => ({ id: u.id, name: u.name, username: u.username, phone: u.phone, active: u.active, role: u.role }));
+---
+
+<AdminLayout title="Equipo" section="equipo">
+  <div class="head">
+    <div>
+      <p class="a-eyebrow red">Personas / 03</p>
+      <h1 class="a-title a-h1" style="margin-top:.75rem">El equipo.</h1>
+      <p class="a-lead">El administrador ve el desempeño de todos. Cada vendedor solo ve su propio espacio.</p>
+    </div>
+    <button type="button" class="a-btn a-btn-dark" data-add-user>
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      Agregar vendedor
+    </button>
+  </div>
+
+  <div class="grid">
+    {
+      users.map((u) => {
+        const s = stats.get(u.id) ?? empty;
+        const isMe = u.id === me.id;
+        return (
+          <article class:list={['member a-card', { off: !u.active }]}>
+            <div class="member-top">
+              <span class="avatar">{initials(u.name)}</span>
+              <div class="who">
+                <h2>
+                  {u.name}
+                  {isMe && <span class="me">(tú)</span>}
+                </h2>
+                <p>
+                  {u.role === 'admin' ? 'Administrador' : 'Vendedor'} · @{u.username}
+                  {u.phone && ` · ${u.phone}`}
+                </p>
+              </div>
+              <span class:list={['a-badge', u.active ? 'soft' : 'off']}>{u.active ? 'Activo' : 'Inactivo'}</span>
+            </div>
+            <dl class="stats">
+              <div>
+                <dt>Unidades vendidas</dt>
+                <dd>{s.units}</dd>
+              </div>
+              <div>
+                <dt>Ganancia neta</dt>
+                <dd class:list={[s.profit < 0 ? 'money-bad' : 'money-good']}>{money(s.profit)}</dd>
+              </div>
+              <div>
+                <dt>Ventas brutas</dt>
+                <dd class="sm">{money(s.gross)}</dd>
+              </div>
+              <div>
+                <dt>Disponibles</dt>
+                <dd class="sm">{s.available} vehículos</dd>
+              </div>
+            </dl>
+            <div class="member-actions">
+              <a class="a-btn a-btn-ghost" href={`/admin/resumen?vendedor=${u.id}`}>Ver ventas</a>
+              {(u.role === 'seller' || isMe) && (
+                <button type="button" class="a-btn a-btn-outline" data-edit-user={u.id}>Editar</button>
+              )}
+              {u.role === 'seller' && (
+                <button type="button" class="a-btn a-btn-danger" data-delete-user={u.id} data-name={u.name} aria-label={`Eliminar a ${u.name}`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"></path><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+              )}
+            </div>
+          </article>
+        );
+      })
+    }
+  </div>
+
+  <dialog class="a-modal narrow" data-user-dialog aria-labelledby="user-title">
+    <form data-user-form novalidate>
+      <div class="a-modal-head">
+        <div>
+          <p class="a-eyebrow red" data-user-eyebrow>Equipo / Nuevo</p>
+          <h2 class="a-title a-h2" id="user-title" style="margin-top:.5rem" data-user-title>Agregar vendedor</h2>
+        </div>
+        <button type="button" class="a-icon-btn" aria-label="Cerrar" data-close>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </div>
+      <div class="a-modal-body">
+        <div class="a-error" data-user-error hidden role="alert"></div>
+        <label class="a-field">
+          <span class="a-label">Nombre completo *</span>
+          <input class="a-input" name="name" required maxlength="80" placeholder="Ej. Carlos Pérez" />
+        </label>
+        <label class="a-field">
+          <span class="a-label">Usuario para iniciar sesión *</span>
+          <input class="a-input" name="username" required maxlength="40" autocomplete="off" placeholder="Ej. carlos" />
+        </label>
+        <label class="a-field">
+          <span class="a-label">Teléfono <span class="opt">(opcional)</span></span>
+          <input class="a-input" name="phone" type="tel" maxlength="30" />
+        </label>
+        <label class="a-field">
+          <span class="a-label" data-pass-label>Contraseña *</span>
+          <input class="a-input" name="password" type="password" minlength="6" autocomplete="new-password" placeholder="Mínimo 6 caracteres" />
+        </label>
+        <label class="check" data-active-wrap>
+          <input type="checkbox" name="active" checked />
+          <span>Cuenta activa <small>(si la desactivas no podrá entrar, pero se conservan sus datos)</small></span>
+        </label>
+      </div>
+      <div class="a-modal-foot">
+        <button type="button" class="a-btn a-btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="a-btn a-btn-primary" data-user-submit>Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="application/json" id="users-data" set:html={JSON.stringify({ me: me.id, users: clientUsers })} />
+</AdminLayout>
+
+<style>
+  .head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .grid {
+    display: grid;
+    gap: 1.25rem;
+    margin-top: 2rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+  }
+  .member {
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+  }
+  .member.off {
+    opacity: 0.65;
+  }
+  .member-top {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--a-line);
+  }
+  .avatar {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 50%;
+    background: #111;
+    color: #fff;
+    font-weight: 700;
+    font-size: 15px;
+  }
+  .who {
+    flex: 1;
+    min-width: 0;
+  }
+  .who h2 {
+    font-family: var(--font-condensed);
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+  .who .me {
+    margin-left: 0.375rem;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 400;
+    text-transform: none;
+    color: var(--a-muted);
+  }
+  .who p {
+    margin-top: 0.25rem;
+    font-size: 12px;
+    color: var(--a-muted);
+    overflow-wrap: anywhere;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    padding-block: 1.25rem;
+  }
+  .stats dt {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--a-faint);
+  }
+  .stats dd {
+    margin-top: 0.25rem;
+    font-family: var(--font-condensed);
+    font-size: 1.875rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .stats dd.sm {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .member-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid var(--a-line);
+  }
+  .member-actions .a-btn-ghost {
+    margin-right: auto;
+    padding-left: 0;
+  }
+  .check {
+    display: flex;
+    gap: 0.75rem;
+    align-items: flex-start;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .check input {
+    margin-top: 0.2rem;
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--red);
+  }
+  .check small {
+    display: block;
+    font-size: 12px;
+    color: var(--a-muted);
+  }
+  .check[hidden] {
+    display: none;
+  }
+</style>
+
+<script>
+  import { api, confirmAction, reloadWith, showError, toast } from '../../scripts/admin';
+
+  const { me, users } = JSON.parse(document.getElementById('users-data')!.textContent || '{}');
+  const dialog = document.querySelector<HTMLDialogElement>('[data-user-dialog]')!;
+  const form = dialog.querySelector<HTMLFormElement>('[data-user-form]')!;
+  const errorBox = form.querySelector<HTMLElement>('[data-user-error]');
+  const submit = form.querySelector<HTMLButtonElement>('[data-user-submit]')!;
+  let editing: any = null;
+
+  function open(user?: any) {
+    editing = user ?? null;
+    form.reset();
+    errorBox!.hidden = true;
+    const f = form.elements as any;
+    form.querySelector('[data-user-eyebrow]')!.textContent = user ? 'Equipo / Editar' : 'Equipo / Nuevo';
+    form.querySelector('[data-user-title]')!.textContent = user ? `Editar a ${user.name}` : 'Agregar vendedor';
+    form.querySelector('[data-pass-label]')!.innerHTML = user
+      ? 'Nueva contraseña <span class="opt">(déjala vacía para no cambiarla)</span>'
+      : 'Contraseña *';
+    (form.querySelector('[data-active-wrap]') as HTMLElement).hidden = !user || user.id === me;
+    if (user) {
+      f.name.value = user.name;
+      f.username.value = user.username;
+      f.phone.value = user.phone ?? '';
+      f.active.checked = user.active;
+    }
+    dialog.showModal();
+    f.name.focus();
+  }
+
+  document.querySelector('[data-add-user]')?.addEventListener('click', () => open());
+  document.querySelectorAll<HTMLElement>('[data-edit-user]').forEach((b) =>
+    b.addEventListener('click', () => open(users.find((u: any) => String(u.id) === b.dataset.editUser))),
+  );
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const f = form.elements as any;
+    const body = {
+      name: f.name.value,
+      username: f.username.value,
+      phone: f.phone.value,
+      password: f.password.value,
+      active: editing ? f.active.checked : true,
+    };
+    submit.disabled = true;
+    try {
+      if (editing) await api('PUT', `/api/admin/users/${editing.id}`, body);
+      else await api('POST', '/api/admin/users', body);
+      reloadWith(editing ? 'Usuario actualizado' : 'Vendedor agregado');
+    } catch (err) {
+      showError(errorBox, (err as Error).message);
+      submit.disabled = false;
+    }
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-delete-user]').forEach((b) =>
+    b.addEventListener('click', async () => {
+      const ok = await confirmAction({
+        title: `Eliminar a ${b.dataset.name}`,
+        message:
+          'Sus vehículos sin vender pasarán a tu inventario y sus ventas se conservarán en los reportes. Ya no podrá iniciar sesión.',
+      });
+      if (!ok) return;
+      b.disabled = true;
+      try {
+        await api('DELETE', `/api/admin/users/${b.dataset.deleteUser}`);
+        reloadWith('Vendedor eliminado');
+      } catch (err) {
+        toast((err as Error).message, 'error');
+        b.disabled = false;
+      }
+    }),
+  );
+</script>

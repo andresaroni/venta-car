@@ -1,0 +1,193 @@
+---
+import CarCard from './CarCard.astro';
+import CarModal from './CarModal.astro';
+import type { Car } from '../data/cars';
+
+interface Props {
+  cars: Car[];
+}
+const { cars } = Astro.props;
+const makes = [...new Set(cars.map((c) => c.make))].sort();
+---
+
+<section id="inventory" class="container inventory">
+  <div class="inventory-head">
+    <div>
+      <p class="eyebrow">The collection / 01</p>
+      <h2 class="display">Find your <span class="text-red">icon.</span></h2>
+    </div>
+    <p class="inventory-lead">
+      Every vehicle is carefully sourced, inspected, and prepared for an uncompromising drive.
+    </p>
+  </div>
+
+  <div class="filters">
+    <label class="filter-search">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg>
+      <input type="search" aria-label="Search vehicles" placeholder="Search make or model" data-filter-search />
+    </label>
+    <div class="filter-selects">
+      <svg class="text-red" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 5H3"></path><path d="M12 19H3"></path><path d="M14 3v4"></path><path d="M16 17v4"></path><path d="M21 12h-9"></path><path d="M21 19h-5"></path><path d="M21 5h-7"></path><path d="M8 10v4"></path><path d="M8 12H3"></path></svg>
+      <select aria-label="Filter by make" data-filter-make>
+        <option value="">All makes</option>
+        {makes.map((m) => <option value={m}>{m}</option>)}
+      </select>
+      <select aria-label="Filter by price" data-filter-price>
+        <option value="">All prices</option>
+        <option value="75000">Under $75k</option>
+        <option value="125000">Under $125k</option>
+        <option value="200000">Under $200k</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="grid" data-grid>
+    {cars.map((car) => <CarCard car={car} />)}
+  </div>
+  <p class="empty" data-empty hidden>No vehicles match your search.</p>
+</section>
+
+<CarModal cars={cars} />
+
+<style>
+  .inventory {
+    padding-block: 5rem;
+  }
+  .inventory-head {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 2rem;
+    padding-bottom: 2.25rem;
+    border-bottom: 1px solid rgb(0 0 0 / 0.15);
+  }
+  .inventory-head .eyebrow {
+    margin-bottom: 0.75rem;
+  }
+  .inventory-lead {
+    max-width: 20rem;
+    font-size: 14px;
+    line-height: 1.5rem;
+    color: rgb(0 0 0 / 0.55);
+  }
+  .filters {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-block: 2.25rem;
+    padding: 0.75rem;
+    background: #fff;
+    border-radius: 2px;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .filter-search {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid rgb(0 0 0 / 0.1);
+    color: rgb(0 0 0 / 0.4);
+  }
+  .filter-search input {
+    width: 100%;
+    background: transparent;
+    border: 0;
+    outline: none;
+    font-size: 14px;
+    color: var(--ink);
+  }
+  .filter-search input::-webkit-search-cancel-button {
+    cursor: pointer;
+  }
+  .filter-selects {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-inline: 0.75rem;
+  }
+  .filter-selects select {
+    background: transparent;
+    border: 0;
+    outline: none;
+    padding-block: 0.75rem;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .filter-selects select:focus-visible {
+    outline: 2px solid var(--red);
+  }
+  .grid {
+    display: grid;
+    gap: 3.5rem 1.5rem;
+  }
+  .empty {
+    padding-block: 4rem;
+    text-align: center;
+    font-size: 14px;
+    color: rgb(0 0 0 / 0.55);
+  }
+  .empty[hidden] {
+    display: none;
+  }
+
+  @media (min-width: 768px) {
+    .inventory {
+      padding-block: 7rem;
+    }
+    .inventory-head {
+      flex-direction: row;
+      align-items: flex-end;
+    }
+    .filters {
+      flex-direction: row;
+      align-items: center;
+    }
+    .filter-search {
+      border-bottom: 0;
+      border-right: 1px solid rgb(0 0 0 / 0.1);
+    }
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (min-width: 1024px) {
+    .grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+</style>
+
+<script>
+  import { initCarousel } from '../scripts/carousel';
+
+  // Carruseles de cada tarjeta
+  document.querySelectorAll<HTMLElement>('.car [data-carousel]').forEach((el) => initCarousel(el));
+
+  // Filtros
+  const search = document.querySelector<HTMLInputElement>('[data-filter-search]');
+  const make = document.querySelector<HTMLSelectElement>('[data-filter-make]');
+  const price = document.querySelector<HTMLSelectElement>('[data-filter-price]');
+  const empty = document.querySelector<HTMLElement>('[data-empty]');
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-car]'));
+
+  function applyFilters() {
+    const q = (search?.value ?? '').trim().toLowerCase();
+    const m = make?.value ?? '';
+    const max = Number(price?.value) || Infinity;
+    let visible = 0;
+    for (const card of cards) {
+      const ok =
+        (!q || (card.dataset.search ?? '').includes(q)) &&
+        (!m || card.dataset.make === m) &&
+        Number(card.dataset.price) < max;
+      card.hidden = !ok;
+      if (ok) visible++;
+    }
+    if (empty) empty.hidden = visible > 0;
+  }
+
+  search?.addEventListener('input', applyFilters);
+  make?.addEventListener('change', applyFilters);
+  price?.addEventListener('change', applyFilters);
+</script>
