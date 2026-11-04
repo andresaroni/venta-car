@@ -1,4 +1,4 @@
-import { all, db, ensureDb, one, run } from './db';
+import { all, batch, one, run } from './db';
 import { deleteImage } from './storage';
 import type { SessionUser } from './auth';
 
@@ -260,16 +260,13 @@ export const canManage =(user: SessionUser, v: Pick<Vehicle, 'ownerId'>) =>
 // ---------- escritura ----------
 
 async function setImages(vehicleId: number, urls: string[]) {
-  await db.batch(
-    [
-      { sql: 'DELETE FROM vehicle_images WHERE vehicle_id = ?', args: [vehicleId] },
-      ...urls.map((url, i) => ({
-        sql: 'INSERT INTO vehicle_images (vehicle_id, url, position) VALUES (?, ?, ?)',
-        args: [vehicleId, url, i],
-      })),
-    ],
-    'write',
-  );
+  await batch([
+    { sql: 'DELETE FROM vehicle_images WHERE vehicle_id = ?', args: [vehicleId] },
+    ...urls.map((url, i) => ({
+      sql: 'INSERT INTO vehicle_images (vehicle_id, url, position) VALUES (?, ?, ?)',
+      args: [vehicleId, url, i],
+    })),
+  ]);
 }
 
 const vehicleArgs = (d: VehicleInput) => [
@@ -307,14 +304,10 @@ export async function updateVehicle(existing: Vehicle, d: VehicleInput) {
 
 /** Elimina el vehículo y sus fotos. Las ventas registradas se conservan para los reportes. */
 export async function deleteVehicle(v: Vehicle) {
-  await ensureDb();
-  await db.batch(
-    [
-      { sql: 'DELETE FROM vehicle_images WHERE vehicle_id = ?', args: [v.id] },
-      { sql: 'DELETE FROM vehicles WHERE id = ?', args: [v.id] },
-    ],
-    'write',
-  );
+  await batch([
+    { sql: 'DELETE FROM vehicle_images WHERE vehicle_id = ?', args: [v.id] },
+    { sql: 'DELETE FROM vehicles WHERE id = ?', args: [v.id] },
+  ]);
   await Promise.all(v.images.map(deleteImage));
 }
 
@@ -343,9 +336,8 @@ export function parseSaleInput(body: any): { data?: SaleInput; errors: string[] 
 }
 
 export async function sellVehicle(v: Vehicle, s: SaleInput, registeredBy: SessionUser) {
-  await ensureDb();
   const profit = round2(s.salePrice - v.totalExpenses);
-  await db.batch(
+  await batch(
     [
       {
         sql: `INSERT INTO sales (vehicle_id, seller_id, registered_by, seller_name, vehicle_label, vin,
@@ -361,6 +353,5 @@ export async function sellVehicle(v: Vehicle, s: SaleInput, registeredBy: Sessio
         args: [s.soldAt, v.id],
       },
     ],
-    'write',
   );
 }

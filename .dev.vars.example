@@ -1,0 +1,4 @@
+# Copia este archivo a .dev.vars para desarrollo local (no se sube a git).
+# En producción define ADMIN_PASSWORD como "secret" en Cloudflare:
+#   Workers & Pages > venta-car > Settings > Variables and Secrets
+ADMIN_PASSWORD=admin123

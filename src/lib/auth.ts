@@ -1,4 +1,3 @@
-import { createHash, randomBytes } from 'node:crypto';
 import type { AstroCookies } from 'astro';
 import { all, one, run } from './db';
 import { verifyPassword } from './password';
@@ -15,7 +14,15 @@ export interface SessionUser {
 export const SESSION_COOKIE = 'velocita_session';
 const SESSION_DAYS = 14;
 
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+async function sha256(s: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function randomToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 export async function login(username: string, password: string): Promise<SessionUser | null> {
   const row = await one<{
@@ -34,10 +41,10 @@ export async function login(username: string, password: string): Promise<Session
 }
 
 export async function createSession(userId: number, cookies: AstroCookies, secure: boolean) {
-  const token = randomBytes(32).toString('base64url');
+  const token = randomToken();
   const expires = Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000;
   await run('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)', [
-    sha256(token),
+    await sha256(token),
     userId,
     expires,
   ]);
@@ -59,7 +66,7 @@ export async function getSessionUser(cookies: AstroCookies): Promise<SessionUser
     `SELECT u.id, u.username, u.name, u.role, s.expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
       WHERE s.id = ? AND u.active = 1`,
-    [sha256(token)],
+    [await sha256(token)],
   );
   const row = rows[0];
   if (!row || Number(row.expires_at) < Date.now()) return null;
@@ -68,7 +75,7 @@ export async function getSessionUser(cookies: AstroCookies): Promise<SessionUser
 
 export async function destroySession(cookies: AstroCookies) {
   const token = cookies.get(SESSION_COOKIE)?.value;
-  if (token) await run('DELETE FROM sessions WHERE id = ?', [sha256(token)]);
+  if (token) await run('DELETE FROM sessions WHERE id = ?', [await sha256(token)]);
   cookies.delete(SESSION_COOKIE, { path: '/' });
 }
 

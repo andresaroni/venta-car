@@ -1,26 +1,16 @@
-// Conexión a la base de datos (libSQL).
-// - Local: archivo .data/velocita.db (no requiere configuración).
-// - Producción: Turso (DATABASE_URL=libsql://... + DATABASE_AUTH_TOKEN).
-import { createClient, type Client, type InArgs, type Row } from '@libsql/client';
-import { mkdirSync } from 'node:fs';
+// Base de datos: Cloudflare D1 (binding "DB" en wrangler.jsonc).
+// En local, `pnpm dev` usa una copia de D1 guardada en .wrangler/state.
+import { env } from 'cloudflare:workers';
 import { hashPassword } from './password';
 import { demoVehicles } from './seed';
 
-const url = process.env.DATABASE_URL || 'file:.data/velocita.db';
-
-if (url.startsWith('file:')) {
-  if (process.env.VERCEL) {
-    throw new Error(
-      'Falta DATABASE_URL: en Vercel la base de datos debe ser Turso (libsql://...). Revisa el README.',
-    );
-  }
-  mkdirSync('.data', { recursive: true });
+type Args = unknown[];
+export interface Statement {
+  sql: string;
+  args?: Args;
 }
 
-export const db: Client = createClient({
-  url,
-  authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
-});
+const d1 = (): D1Database => env.DB;
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS users (
@@ -33,14 +23,12 @@ CREATE TABLE IF NOT EXISTS users (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL,
   expires_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-
 CREATE TABLE IF NOT EXISTS vehicles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   owner_id INTEGER NOT NULL,
@@ -68,7 +56,6 @@ CREATE TABLE IF NOT EXISTS vehicles (
 );
 CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_id);
 CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);
-
 CREATE TABLE IF NOT EXISTS vehicle_images (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   vehicle_id INTEGER NOT NULL,
@@ -76,9 +63,6 @@ CREATE TABLE IF NOT EXISTS vehicle_images (
   position INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_images_vehicle ON vehicle_images(vehicle_id);
-
--- Las ventas guardan una "foto" de los datos (vehículo, vendedor, gastos) para que
--- el historial se mantenga aunque luego se elimine el vehículo o el vendedor.
 CREATE TABLE IF NOT EXISTS sales (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   vehicle_id INTEGER,
@@ -98,57 +82,70 @@ CREATE TABLE IF NOT EXISTS sales (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_sales_seller ON sales(seller_id);
-CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sold_at);
+CREATE INDEX IF NOT EXISTS idx_sales_date ON sales(sold_at)
 `;
+// Nota: las ventas guardan una copia de los datos (vehículo, vendedor, gastos) para que
+// el historial se mantenga aunque luego se elimine el vehículo o el vendedor.
 
-let ready: Promise<void> | null = null;
+const prepare = (s: Statement) => d1().prepare(s.sql).bind(...(s.args ?? []).map((a) => (a === undefined ? null : a)));
 
-/** Crea las tablas y el primer administrador (una sola vez por proceso). */
-export function ensureDb(): Promise<void> {
-  if (!ready) {
-    ready = init().catch((err) => {
-      ready = null;
-      throw err;
-    });
-  }
-  return ready;
+// En Workers no se puede compartir una promesa de I/O entre peticiones, así que solo
+// se recuerda que ya se inicializó. La inicialización es idempotente.
+let initialized = false;
+
+/** Crea las tablas y el primer administrador (una vez por instancia del Worker). */
+export async function ensureDb(): Promise<void> {
+  if (initialized) return;
+  await init();
+  initialized = true;
 }
 
 async function init() {
-  await db.executeMultiple(SCHEMA);
+  const statements = SCHEMA.split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  await d1().batch(statements.map((sql) => d1().prepare(sql)));
 
-  const { rows } = await db.execute('SELECT COUNT(*) AS n FROM users');
-  if (Number(rows[0].n) > 0) return;
+  const row = await d1().prepare('SELECT COUNT(*) AS n FROM users').first<{ n: number }>();
+  if (Number(row?.n ?? 0) > 0) return;
 
-  const username = process.env.ADMIN_USERNAME || 'admin';
-  const password = process.env.ADMIN_PASSWORD || 'admin123';
-  const name = process.env.ADMIN_NAME || 'Administrador';
-  const res = await db.execute({
-    sql: `INSERT INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin')`,
-    args: [username, name, await hashPassword(password)],
-  });
-  const adminId = Number(res.lastInsertRowid);
+  const vars = env as unknown as Record<string, string | undefined>;
+  // OR IGNORE: si dos peticiones arrancan a la vez, solo una crea el admin y los demos.
+  const res = await d1()
+    .prepare(`INSERT OR IGNORE INTO users (username, name, password_hash, role) VALUES (?, ?, ?, 'admin')`)
+    .bind(
+      vars.ADMIN_USERNAME || 'admin',
+      vars.ADMIN_NAME || 'Administrador',
+      await hashPassword(vars.ADMIN_PASSWORD || 'admin123'),
+    )
+    .run();
+  if (!Number(res.meta.changes)) return;
+  const adminId = Number(res.meta.last_row_id);
 
-  if ((process.env.SEED_DEMO ?? 'true') !== 'false') {
+  if ((vars.SEED_DEMO ?? 'true') !== 'false') {
     for (const v of demoVehicles) {
-      const r = await db.execute({
-        sql: `INSERT INTO vehicles (owner_id, make, model, version, year, mileage, color, vin, owners,
-                purchase_place, description, cost_purchase, cost_taxes, cost_mechanical, cost_parts,
-                cost_repair, sale_price)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        args: [
+      const r = await d1()
+        .prepare(
+          `INSERT INTO vehicles (owner_id, make, model, version, year, mileage, color, vin, owners,
+              purchase_place, description, cost_purchase, cost_taxes, cost_mechanical, cost_parts,
+              cost_repair, sale_price)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
           adminId, v.make, v.model, v.version, v.year, v.mileage, v.color, v.vin, v.owners,
           v.purchasePlace, v.description, v.costs.purchase, v.costs.taxes, v.costs.mechanical,
           v.costs.parts, v.costs.repair, v.salePrice,
-        ],
-      });
-      const vehicleId = Number(r.lastInsertRowid);
-      await db.batch(
-        v.images.map((url, i) => ({
-          sql: 'INSERT INTO vehicle_images (vehicle_id, url, position) VALUES (?, ?, ?)',
-          args: [vehicleId, url, i],
-        })),
-        'write',
+        )
+        .run();
+      const vehicleId = Number(r.meta.last_row_id);
+      // Ojo: aquí no se usa batch(), porque llamaría a ensureDb() durante la propia inicialización
+      await d1().batch(
+        v.images.map((url, i) =>
+          prepare({
+            sql: 'INSERT INTO vehicle_images (vehicle_id, url, position) VALUES (?, ?, ?)',
+            args: [vehicleId, url, i],
+          }),
+        ),
       );
     }
   }
@@ -156,18 +153,26 @@ async function init() {
 
 // ---------- helpers ----------
 
-export async function all<T = Row>(sql: string, args: InArgs = []): Promise<T[]> {
+export async function all<T = Record<string, unknown>>(sql: string, args: Args = []): Promise<T[]> {
   await ensureDb();
-  const { rows } = await db.execute({ sql, args });
-  return rows as unknown as T[];
+  const { results } = await prepare({ sql, args }).all<T>();
+  return results;
 }
 
-export async function one<T = Row>(sql: string, args: InArgs = []): Promise<T | undefined> {
+export async function one<T = Record<string, unknown>>(sql: string, args: Args = []): Promise<T | undefined> {
   const rows = await all<T>(sql, args);
   return rows[0];
 }
 
-export async function run(sql: string, args: InArgs = []) {
+export async function run(sql: string, args: Args = []) {
   await ensureDb();
-  return db.execute({ sql, args });
+  const res = await prepare({ sql, args }).run();
+  return { lastInsertRowid: Number(res.meta.last_row_id), changes: Number(res.meta.changes) };
+}
+
+/** Ejecuta varias sentencias en una sola transacción. */
+export async function batch(statements: Statement[]) {
+  if (!statements.length) return;
+  await ensureDb();
+  await d1().batch(statements.map(prepare));
 }

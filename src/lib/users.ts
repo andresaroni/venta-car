@@ -1,4 +1,4 @@
-import { all, db, ensureDb, one, run } from './db';
+import { all, batch, one, run } from './db';
 import { hashPassword } from './password';
 import { destroyUserSessions, type Role } from './auth';
 
@@ -97,13 +97,9 @@ export async function setPassword(id: number, password: string) {
  * y sus ventas se conservan en los reportes (con su nombre).
  */
 export async function deleteSeller(id: number, adminId: number) {
-  await ensureDb();
-  await db.batch(
-    [
-      { sql: 'UPDATE vehicles SET owner_id = ? WHERE owner_id = ?', args: [adminId, id] },
-      { sql: 'DELETE FROM sessions WHERE user_id = ?', args: [id] },
-      { sql: `DELETE FROM users WHERE id = ? AND role = 'seller'`, args: [id] },
-    ],
-    'write',
-  );
+  await batch([
+    { sql: 'UPDATE vehicles SET owner_id = ? WHERE owner_id = ?', args: [adminId, id] },
+    { sql: 'DELETE FROM sessions WHERE user_id = ?', args: [id] },
+    { sql: `DELETE FROM users WHERE id = ? AND role = 'seller'`, args: [id] },
+  ]);
 }

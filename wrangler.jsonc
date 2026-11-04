@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Debe coincidir con el nombre del Worker creado en el panel de Cloudflare.
+  "name": "venta-car",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  // Base de datos (D1). Se crea automáticamente en el primer `wrangler deploy`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "venta-car-db"
+    }
+  ],
+  // Fotos de los vehículos (R2). Se crea automáticamente en el primer `wrangler deploy`.
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "venta-car-media"
+    }
+  ],
+  // Primer administrador (solo se usa cuando la base está vacía).
+  // Cambia la contraseña desde "Mi cuenta" al entrar por primera vez.
+  "vars": {
+    "ADMIN_USERNAME": "admin",
+    "ADMIN_NAME": "Administrador",
+    "SEED_DEMO": "true"
+  }
+}

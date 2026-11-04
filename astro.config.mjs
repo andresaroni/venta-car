@@ -1,18 +1,14 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
-import node from '@astrojs/node';
-import vercel from '@astrojs/vercel';
-
-// En Vercel se usa su adaptador; en local / VPS el de Node.
-const isVercel = !!process.env.VERCEL;
+import cloudflare from '@astrojs/cloudflare';
 
 // https://astro.build/config
 export default defineConfig({
   output: 'server',
-  adapter: isVercel ? vercel() : node({ mode: 'standalone' }),
-  vite: {
-    ssr: {
-      external: ['@libsql/client', 'libsql'],
-    },
-  },
+  adapter: cloudflare({
+    // No usamos <Image /> de Astro: las fotos se sirven tal cual (evita requerir Cloudflare Images).
+    imageService: 'passthrough',
+  }),
+  // Las sesiones del panel se guardan en D1 (src/lib/auth.ts), no hace falta el KV de Astro.
+  session: false,
 });

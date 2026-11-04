@@ -1,24 +1,31 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+// Hash de contraseñas con PBKDF2-SHA256 (Web Crypto, disponible en Cloudflare Workers).
+// Workers permite como máximo 100.000 iteraciones.
+const ITERATIONS = 100_000;
+const enc = new TextEncoder();
 
-const KEYLEN = 64;
+const toHex = (buf: ArrayBuffer | Uint8Array) =>
+  Array.from(buf instanceof Uint8Array ? buf : new Uint8Array(buf), (b) => b.toString(16).padStart(2, '0')).join('');
+const fromHex = (hex: string): Uint8Array<ArrayBuffer> => new Uint8Array((hex.match(/.{2}/g) ?? []).map((h) => parseInt(h, 16)));
 
-function scryptAsync(password: string, salt: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) =>
-    scrypt(password, salt, KEYLEN, (err, key) => (err ? reject(err) : resolve(key))),
-  );
+async function derive(password: string, salt: Uint8Array<ArrayBuffer>, iterations: number) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  return crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations }, key, 256);
 }
 
-/** Devuelve "salt:hash" en hexadecimal. */
+/** Devuelve "pbkdf2:iteraciones:salt:hash". */
 export async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16);
-  const key = await scryptAsync(password, salt);
-  return `${salt.toString('hex')}:${key.toString('hex')}`;
+  const salt = crypto.getRandomValues(new Uint8Array(new ArrayBuffer(16)));
+  const hash = await derive(password, salt, ITERATIONS);
+  return `pbkdf2:${ITERATIONS}:${toHex(salt)}:${toHex(hash)}`;
 }
 
 export async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  const [saltHex, keyHex] = stored.split(':');
-  if (!saltHex || !keyHex) return false;
-  const key = await scryptAsync(password, Buffer.from(saltHex, 'hex'));
-  const expected = Buffer.from(keyHex, 'hex');
-  return expected.length === key.length && timingSafeEqual(expected, key);
+  const [scheme, iter, saltHex, hashHex] = stored.split(':');
+  if (scheme !== 'pbkdf2' || !iter || !saltHex || !hashHex) return false;
+  const actual = new Uint8Array(await derive(password, fromHex(saltHex), Number(iter)));
+  const expected = fromHex(hashHex);
+  if (actual.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i++) diff |= actual[i] ^ expected[i];
+  return diff === 0;
 }

@@ -1,6 +1,7 @@
 # Velocita — Landing + Panel administrativo
 
 Landing de venta de autos con catálogo público (WhatsApp) y panel privado en `/admin`.
+Corre en **Cloudflare Workers** con **D1** (base de datos) y **R2** (fotos).
 
 ## Desarrollo local
 
@@ -9,43 +10,45 @@ pnpm install
 pnpm dev            # http://localhost:4321  ·  panel: http://localhost:4321/admin
 ```
 
+`pnpm dev` ejecuta el sitio dentro del runtime de Cloudflare con copias locales de D1 y R2
+(guardadas en `.wrangler/state`). Para empezar de cero, borra esa carpeta.
+
 La primera vez se crea automáticamente:
 
-- la base de datos en `.data/velocita.db`
-- el administrador **admin / admin123** (cámbialo en *Mi cuenta* o define `ADMIN_USERNAME` / `ADMIN_PASSWORD` antes del primer arranque)
-- 5 vehículos de ejemplo (desactívalo con `SEED_DEMO=false`)
+- el administrador **admin / admin123**. Cámbialo en *Mi cuenta*, o crea `.dev.vars` con `ADMIN_PASSWORD=...` (ver `.dev.vars.example`).
+- 5 vehículos de ejemplo. Para no cargarlos, pon `"SEED_DEMO": "false"` en `wrangler.jsonc`.
 
-Para empezar de cero, borra la carpeta `.data/`.
+## Despliegue en Cloudflare
 
-Copia `.env.example` a `.env` si quieres cambiar algo.
+El proyecto se despliega como **Worker** (no hace falta un proyecto de Pages).
+
+1. **Nombre**: `name` en `wrangler.jsonc` debe ser igual al nombre del Worker en el panel (ahora: `venta-car`).
+2. **R2**: actívalo una vez en el panel (*R2 Object Storage → Get started*).
+3. **Worker → Settings → Build** (conectado al repo de GitHub):
+   - Build command: `pnpm run build`
+   - Deploy command: `npx wrangler deploy`
+   - Root directory: `/`
+4. **Contraseña del admin** (antes del primer acceso): *Settings → Variables and Secrets →* agrega el secret `ADMIN_PASSWORD`.
+5. Haz push a `main`. En el primer deploy, Wrangler crea solo la base D1 `venta-car-db` y el bucket R2 `venta-car-media`.
+
+También puedes desplegar desde tu computadora con `npx wrangler login` y luego `pnpm run deploy`.
+
+La versión de Node del build está fijada en `.node-version` (24), porque Astro 7 necesita Node ≥ 22.23.
 
 ## Roles
 
 | | Administrador | Vendedor |
 |---|---|---|
 | Agregar / editar / vender / eliminar sus vehículos | ✓ | ✓ |
-| Ver y gestionar vehículos de todos | ✓ | — |
-| Resumen y libro de ventas | Todo el equipo (filtrable por vendedor) | Solo los suyos |
+| Ver y gestionar los vehículos de todos | ✓ | — |
+| Resumen y libro de ventas | Todo el equipo (se puede filtrar por vendedor) | Solo los suyos |
 | Agregar, editar, desactivar y eliminar vendedores | ✓ | — |
 
 - **Gastos** = precio de compra + impuestos + mecánica + repuestos + reparaciones + otros gastos.
-- **Ganancia** = precio de venta − gastos. Al registrar la venta, el precio final se puede negociar.
-- Un vehículo vendido desaparece de la página pública y queda como *Vendido* en el inventario (solo se puede eliminar).
-- Las ventas guardan una copia de sus datos: si se elimina el vehículo o el vendedor, el historial y los reportes se mantienen.
-- Al eliminar un vendedor, sus vehículos sin vender pasan al administrador.
-
-## Producción en Vercel
-
-1. **Base de datos (Turso)**: crea una base en <https://turso.tech> y añade en Vercel → Settings → Environment Variables:
-   - `DATABASE_URL` = `libsql://tu-base.turso.io`
-   - `DATABASE_AUTH_TOKEN` = el token de la base
-2. **Fotos (Vercel Blob)**: en el proyecto de Vercel → Storage → crear *Blob*. Vercel añade `BLOB_READ_WRITE_TOKEN` solo.
-3. Opcional: `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `ADMIN_NAME`, `SEED_DEMO`.
-4. Despliega. El adaptador de Vercel se activa automáticamente.
-
-Sin Turso el sitio no arranca en Vercel (su disco es de solo lectura). En un servidor propio (VPS) puedes usar
-`pnpm build && node dist/server/entry.mjs` con la base local en `.data/`.
+- **Ganancia** = precio de venta − gastos. El precio final se puede negociar al registrar la venta.
+- Un vehículo vendido desaparece de la página pública y queda como *Vendido* en el inventario; solo se puede eliminar.
+- Las ventas guardan una copia de sus datos, así que el historial se conserva aunque se elimine el vehículo o el vendedor.
 
 ## WhatsApp
 
-Cambia el número en `src/data/site.ts` (`whatsappNumber`, código de país + número, solo dígitos).
+Cambia el número en `src/data/site.ts` (`whatsappNumber`: código de país + número, solo dígitos).
