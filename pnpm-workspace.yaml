@@ -1,4 +1,4 @@
-allowBuilds:
-  esbuild: true
-  workerd: true
-  sharp: false
+# pnpm 10: dependencias a las que se les permite ejecutar scripts de instalación
+onlyBuiltDependencies:
+  - esbuild
+  - workerd
